@@ -1,8 +1,8 @@
 {
   "mcpServers": {
     "token-analyzer": {
-      "command": "${CLAUDE_PLUGIN_DATA}/cta-mcp-server",
-      "args": [],
+      "command": "bash",
+      "args": ["${CLAUDE_PLUGIN_ROOT}/scripts/run.sh"],
       "env": {
         "CTA_DB_PATH": "${CLAUDE_PLUGIN_DATA}/token-analyzer.db"
       }
