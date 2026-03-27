@@ -38,10 +38,11 @@ pub fn fmt_pct(pct: f64) -> String {
 
 /// Truncate a session ID to fit within `max_len`, appending ellipsis if needed.
 pub fn truncate_session_id(id: &str, max_len: usize) -> String {
-    if id.len() <= max_len {
+    if id.chars().count() <= max_len {
         id.to_string()
     } else {
-        format!("{}…", &id[..max_len - 1])
+        let truncated: String = id.chars().take(max_len - 1).collect();
+        format!("{}…", truncated)
     }
 }
 
@@ -64,11 +65,16 @@ pub fn short_project_name(full_path: &str) -> String {
 }
 
 /// Pad/truncate a string to fit exactly `width` characters (left-aligned).
+/// Width counts Unicode characters, not bytes — safe for CJK paths.
 pub fn pad(s: &str, width: usize) -> String {
-    if s.len() >= width {
-        format!("{}…", &s[..width - 1])
+    let char_count = s.chars().count();
+    if char_count >= width {
+        let truncated: String = s.chars().take(width - 1).collect();
+        format!("{}…", truncated)
     } else {
-        format!("{:<width$}", s, width = width)
+        // Append ASCII spaces to reach target width (char-count based, not byte-count)
+        let padding = width - char_count;
+        format!("{}{}", s, " ".repeat(padding))
     }
 }
 
