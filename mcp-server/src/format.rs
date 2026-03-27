@@ -1,6 +1,9 @@
 //! Formatting helpers for human-readable token/cost/session display.
 //!
 //! Extracted from cli.rs to enable unit testing and reuse.
+//! Uses `unicode-width` for correct terminal column alignment with CJK characters.
+
+use unicode_width::UnicodeWidthStr;
 
 /// Format a token count with human-readable suffixes (K/M/B).
 pub fn fmt_tokens(n: u64) -> String {
@@ -36,12 +39,21 @@ pub fn fmt_pct(pct: f64) -> String {
     format!("{:.1}%", pct)
 }
 
-/// Truncate a session ID to fit within `max_len`, appending ellipsis if needed.
+/// Truncate a session ID to fit within `max_len` display columns, appending ellipsis if needed.
+/// Uses unicode display width so CJK characters (2 columns each) are measured correctly.
 pub fn truncate_session_id(id: &str, max_len: usize) -> String {
-    if id.chars().count() <= max_len {
+    if id.width() <= max_len {
         id.to_string()
     } else {
-        let truncated: String = id.chars().take(max_len - 1).collect();
+        // Take chars until we'd exceed max_len - 1 columns (leaving room for …)
+        let mut width = 0;
+        let truncated: String = id
+            .chars()
+            .take_while(|c| {
+                width += unicode_width::UnicodeWidthChar::width(*c).unwrap_or(0);
+                width <= max_len - 1
+            })
+            .collect();
         format!("{}…", truncated)
     }
 }
@@ -64,16 +76,23 @@ pub fn short_project_name(full_path: &str) -> String {
     name.to_string()
 }
 
-/// Pad/truncate a string to fit exactly `width` characters (left-aligned).
-/// Width counts Unicode characters, not bytes — safe for CJK paths.
+/// Pad/truncate a string to fit exactly `width` terminal columns (left-aligned).
+/// Uses unicode display width: CJK characters count as 2 columns, ASCII as 1.
 pub fn pad(s: &str, width: usize) -> String {
-    let char_count = s.chars().count();
-    if char_count >= width {
-        let truncated: String = s.chars().take(width - 1).collect();
+    let display_width = s.width();
+    if display_width >= width {
+        // Truncate by display width, leaving room for ellipsis (1 column)
+        let mut w = 0;
+        let truncated: String = s
+            .chars()
+            .take_while(|c| {
+                w += unicode_width::UnicodeWidthChar::width(*c).unwrap_or(0);
+                w <= width - 1
+            })
+            .collect();
         format!("{}…", truncated)
     } else {
-        // Append ASCII spaces to reach target width (char-count based, not byte-count)
-        let padding = width - char_count;
+        let padding = width - display_width;
         format!("{}{}", s, " ".repeat(padding))
     }
 }
