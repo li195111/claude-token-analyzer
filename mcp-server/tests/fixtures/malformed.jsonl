@@ -1,0 +1,20 @@
+this is not json at all
+{broken json missing closing brace
+{"type":"assistant","requestId":"req_ok_001","timestamp":"2026-03-20T13:00:00.000Z","isSidechain":false,"message":{"model":"claude-opus-4-6","id":"msg_ok_001","role":"assistant","content":[{"type":"text","text":"Valid record 1."}],"stop_reason":"end_turn","usage":{"input_tokens":100,"output_tokens":50,"cache_creation_input_tokens":200,"cache_read_input_tokens":1000}}}
+random garbage line 3
+yet another bad line 4
+not valid json line 5
+corrupted data here 6
+more nonsense 7
+invalid content 8
+broken line 9
+{"type":"assistant","requestId":"req_ok_002","timestamp":"2026-03-20T13:00:05.000Z","isSidechain":false,"message":{"model":"claude-opus-4-6","id":"msg_ok_002","role":"assistant","content":[{"type":"text","text":"Valid record 2."}],"stop_reason":"end_turn","usage":{"input_tokens":150,"output_tokens":60,"cache_creation_input_tokens":300,"cache_read_input_tokens":1200}}}
+bad line 10
+garbage 11
+not json 12
+error here 13
+{"type":"assistant","requestId":"req_ok_003","timestamp":"2026-03-20T13:00:10.000Z","isSidechain":false,"message":{"model":"claude-opus-4-6","id":"msg_ok_003","role":"assistant","content":[{"type":"text","text":"Valid record 3."}],"stop_reason":"end_turn","usage":{"input_tokens":200,"output_tokens":70,"cache_creation_input_tokens":100,"cache_read_input_tokens":800}}}
+still bad 14
+completely wrong 15
+{"type":"assistant","requestId":"req_ok_004","timestamp":"2026-03-20T13:00:15.000Z","isSidechain":false,"message":{"model":"claude-opus-4-6","id":"msg_ok_004","role":"assistant","content":[{"type":"text","text":"Valid record 4."}],"stop_reason":"end_turn","usage":{"input_tokens":120,"output_tokens":55,"cache_creation_input_tokens":150,"cache_read_input_tokens":900}}}
+{"type":"assistant","requestId":"req_ok_005","timestamp":"2026-03-20T13:00:20.000Z","isSidechain":false,"message":{"model":"claude-opus-4-6","id":"msg_ok_005","role":"assistant","content":[{"type":"text","text":"Valid record 5."}],"stop_reason":"end_turn","usage":{"input_tokens":180,"output_tokens":65,"cache_creation_input_tokens":250,"cache_read_input_tokens":1100}}}

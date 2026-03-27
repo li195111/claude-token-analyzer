@@ -1,0 +1,7 @@
+{"type":"progress","timestamp":"2026-03-20T11:00:00.000Z","progress":{"step":1,"total":5,"message":"Initializing..."}}
+{"type":"progress","timestamp":"2026-03-20T11:00:01.000Z","progress":{"step":2,"total":5,"message":"Loading context..."}}
+{"type":"progress","timestamp":"2026-03-20T11:00:02.000Z","progress":{"step":3,"total":5,"message":"Processing..."}}
+{"type":"progress","timestamp":"2026-03-20T11:00:03.000Z","progress":{"step":4,"total":5,"message":"Finalizing..."}}
+{"type":"progress","timestamp":"2026-03-20T11:00:04.000Z","progress":{"step":5,"total":5,"message":"Complete"}}
+{"type":"system","timestamp":"2026-03-20T11:00:05.000Z","message":{"role":"system","content":"Session initialized"},"turn_duration_ms":1500}
+{"type":"system","timestamp":"2026-03-20T11:00:06.000Z","message":{"role":"system","content":"Session ready"}}

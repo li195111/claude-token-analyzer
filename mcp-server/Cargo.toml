@@ -1,0 +1,32 @@
+[package]
+name = "claude-token-analyzer"
+version = "0.1.0"
+edition = "2024"
+
+[[bin]]
+name = "cta-mcp-server"
+path = "src/bin/mcp.rs"
+
+[[bin]]
+name = "cta"
+path = "src/bin/cli.rs"
+
+[dependencies]
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+chrono = { version = "0.4", features = ["serde"] }
+thiserror = "2"
+anyhow = "1"
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+rusqlite = { version = "0.34", features = ["bundled"] }
+zstd = "0.13"
+toml = "0.8"
+clap = { version = "4", features = ["derive"] }
+tokio = { version = "1", features = ["full"] }
+schemars = "1"
+rmcp = { version = "1.2", features = ["server", "transport-io", "macros"] }
+
+[dev-dependencies]
+tempfile = "3"
+filetime = "0.2"
