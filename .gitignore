@@ -1,0 +1,4 @@
+mcp-server/target/
+data/*.db
+data/token-analyzer-archive/
+.DS_Store

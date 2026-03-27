@@ -1,0 +1,11 @@
+{
+  "mcpServers": {
+    "token-analyzer": {
+      "command": "${CLAUDE_PLUGIN_ROOT}/mcp-server/target/release/cta-mcp-server",
+      "args": [],
+      "env": {
+        "CTA_DB_PATH": "${CLAUDE_PLUGIN_ROOT}/data/token-analyzer.db"
+      }
+    }
+  }
+}
