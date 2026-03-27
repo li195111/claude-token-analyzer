@@ -80,7 +80,7 @@ pub fn short_project_name(full_path: &str) -> String {
 /// Uses unicode display width: CJK characters count as 2 columns, ASCII as 1.
 pub fn pad(s: &str, width: usize) -> String {
     let display_width = s.width();
-    if display_width >= width {
+    if display_width > width {
         // Truncate by display width, leaving room for ellipsis (1 column)
         let mut w = 0;
         let truncated: String = s
