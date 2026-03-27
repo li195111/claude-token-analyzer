@@ -14,19 +14,25 @@ CTA provides 7 MCP tools and 6 workflow skills for understanding and optimizing 
 
 ## Installation
 
-### As Claude Code Plugin
+### From Marketplace
 
 ```bash
-claude plugin add /path/to/claude-token-analyzer
+# Add marketplace
+claude plugin marketplace add li195111/claude-token-analyzer
+
+# Install plugin
+claude plugin install claude-token-analyzer
 ```
 
-### From Source
+### From Source (Local Development)
 
 ```bash
 git clone https://github.com/li195111/claude-token-analyzer.git
 cd claude-token-analyzer
 bash scripts/build.sh
-claude plugin add .
+
+# Launch with plugin loaded
+claude --plugin-dir .
 ```
 
 ## Building
