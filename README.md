@@ -14,17 +14,19 @@ CTA provides 7 MCP tools and 6 workflow skills for understanding and optimizing 
 
 ## Installation
 
-### From Marketplace
+### From Marketplace (Recommended)
 
 ```bash
 # Add marketplace
 claude plugin marketplace add li195111/claude-token-analyzer
 
-# Install plugin
+# Install plugin — binary auto-downloads on first session start
 claude plugin install claude-token-analyzer
 ```
 
-### From Source (Local Development)
+The MCP server binary is automatically downloaded from GitHub Releases on the first session via a `SessionStart` hook. No Rust toolchain required.
+
+### From Source (Development)
 
 ```bash
 git clone https://github.com/li195111/claude-token-analyzer.git
@@ -35,7 +37,7 @@ bash scripts/build.sh
 claude --plugin-dir .
 ```
 
-## Building
+## Building from Source
 
 ```bash
 bash scripts/build.sh
