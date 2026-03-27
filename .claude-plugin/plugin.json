@@ -2,8 +2,8 @@
   "name": "claude-token-analyzer",
   "version": "0.1.0",
   "description": "Analyze Claude Code session token usage, costs, trends, and anomalies",
-  "author": { "name": "liyuefong" },
-  "repository": "https://github.com/liyuefong/claude-token-analyzer",
+  "author": { "name": "li195111" },
+  "repository": "https://github.com/li195111/claude-token-analyzer",
   "license": "MIT",
   "keywords": ["token-analysis", "cost-tracking", "usage-analytics", "mcp-server"]
 }

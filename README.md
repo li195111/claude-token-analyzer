@@ -23,7 +23,7 @@ claude plugin add /path/to/claude-token-analyzer
 ### From Source
 
 ```bash
-git clone https://github.com/liyuefong/claude-token-analyzer.git
+git clone https://github.com/li195111/claude-token-analyzer.git
 cd claude-token-analyzer
 bash scripts/build.sh
 claude plugin add .

@@ -1,0 +1,22 @@
+{
+  "name": "claude-token-analyzer",
+  "owner": {
+    "name": "li195111",
+    "url": "https://github.com/li195111"
+  },
+  "metadata": {
+    "description": "Claude Code token usage analysis: costs, trends, anomalies, and optimization",
+    "homepage": "https://github.com/li195111/claude-token-analyzer"
+  },
+  "plugins": [
+    {
+      "name": "claude-token-analyzer",
+      "version": "0.1.0",
+      "source": "./",
+      "description": "Analyze Claude Code session token usage, costs, trends, and anomalies. 7 MCP tools + 6 workflow skills.",
+      "category": "development",
+      "homepage": "https://github.com/li195111/claude-token-analyzer",
+      "keywords": ["token-analysis", "cost-tracking", "usage-analytics", "mcp-server"]
+    }
+  ]
+}
