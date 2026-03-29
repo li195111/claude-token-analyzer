@@ -19,7 +19,7 @@ Unified descriptions and per-platform fields for 4 MCP directory submissions.
 | Field | Value |
 |-------|-------|
 | GitHub Repo URL | `https://github.com/li195111/claude-token-analyzer` |
-| Logo | 400x400 PNG (**BLOCKER** — must create before submitting) |
+| Logo | 400x400 PNG (BLOCKER — must create before submitting) |
 
 **Note:** Has review process (community adoption, security). Automated README parsing may pull description from GitHub.
 

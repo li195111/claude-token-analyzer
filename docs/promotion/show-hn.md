@@ -11,7 +11,7 @@
 Show HN: I scanned {N} Claude Code sessions – here's where the tokens actually go
 ```
 
-> Replace all {PLACEHOLDER} values with fresh scan data before posting.
+> Replace {N} with fresh scan data before posting.
 
 ## Body
 

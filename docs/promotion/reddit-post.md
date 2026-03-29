@@ -60,7 +60,7 @@ MIT Licensed.
 
 ## Placeholders to Fill
 
-Same as Show HN — see [show-hn.md](show-hn.md) for how to get each value.
+Same as Show HN — see show-hn.md for how to get each value.
 
 ## Pre-post Checklist
 
@@ -68,4 +68,4 @@ Same as Show HN — see [show-hn.md](show-hn.md) for how to get each value.
 - [ ] 2 screenshots prepared and uploaded (anomaly scan + cost report)
 - [ ] All {PLACEHOLDER} values replaced with fresh scan data
 - [ ] Chinese section included at bottom
-- [ ] All 4 required elements present: What / How / Screenshots / Prompt
+- [ ] All 4 required elements present: What/How/Screenshots/Prompt
