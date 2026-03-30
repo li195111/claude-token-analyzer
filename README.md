@@ -79,11 +79,11 @@ Environment variables (all optional):
 | Variable | Purpose | Default |
 |----------|---------|---------|
 | `CTA_DB_PATH` | SQLite database location | `${CLAUDE_PLUGIN_ROOT}/data/token-analyzer.db` |
-| `CTA_PROJECTS_DIR` | Session logs directory | `~/.claude/projects` |
-| `CTA_ARCHIVE_DIR` | Archive directory | `~/.claude/token-analyzer-archive` |
+| `CTA_PROJECTS_DIR` | Session logs directory | `$CLAUDE_CONFIG_DIR/projects` or `~/.claude/projects` |
+| `CTA_ARCHIVE_DIR` | Archive directory | `$CLAUDE_CONFIG_DIR/token-analyzer-archive` or `~/.claude/token-analyzer-archive` |
 | `CTA_PRICING_PATH` | Custom pricing TOML | Embedded in binary |
 
-Path resolution priority: Environment variable > Plugin mode (`$CLAUDE_PLUGIN_ROOT`) > Standalone mode (`$HOME/.claude/`)
+Path resolution priority: Environment variable > Plugin mode (`$CLAUDE_PLUGIN_ROOT`) > Config dir mode (`$CLAUDE_CONFIG_DIR`) > Standalone mode (`$HOME/.claude/`)
 
 ## Building from Source
 
