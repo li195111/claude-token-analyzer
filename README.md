@@ -93,7 +93,7 @@ cd claude-token-analyzer
 bash scripts/build.sh
 # Binary: mcp-server/target/release/cta-mcp-server
 
-# Run tests (98 tests)
+# Run tests (103 tests)
 cargo test --all-targets --manifest-path mcp-server/Cargo.toml
 
 # Lint
