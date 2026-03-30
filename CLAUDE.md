@@ -8,7 +8,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 # Build release binary (outputs mcp-server/target/release/cta-mcp-server)
 bash scripts/build.sh
 
-# Run all tests (98 tests: unit + integration)
+# Run all tests (103 tests: unit + integration)
 cargo test --all-targets --manifest-path mcp-server/Cargo.toml
 
 # Run a single test by name
@@ -59,7 +59,7 @@ This is a Rust-based Claude Code plugin that parses JSONL session logs from `~/.
 | `detector.rs` | 6-type statistical anomaly detection with severity scoring |
 | `pricing.rs` | Model pricing lookup from TOML, cost calculation per token type |
 | `archiver.rs` | zstd compression/decompression for session archival |
-| `config.rs` | Centralized path resolution across three deployment modes |
+| `config.rs` | Centralized path resolution across four deployment modes |
 | `session_finder.rs` | Recursive JSONL file discovery under projects directory |
 
 ### Plugin Structure
