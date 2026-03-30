@@ -13,7 +13,7 @@ Post after Show HN and Reddit (same day).
 ```
 Your Claude Code sessions might be burning tokens you can't see.
 
-I scanned {N} sessions and found {ANOMALY_RATE}% had anomalies — mostly
+I scanned 7,593 sessions and found 8.0% had anomalies — mostly
 prompts that should have been cached but weren't.
 
 Built a plugin that diagnoses 6 types of token waste with severity scoring.
@@ -25,10 +25,3 @@ Then ask: "cta" or "how much did I spend?"
 MIT licensed — feedback welcome!
 https://github.com/li195111/claude-token-analyzer
 ```
-
-## Placeholders to Fill
-
-| Placeholder | How to Get |
-|-------------|-----------|
-| `{N}` | Same as Show HN |
-| `{ANOMALY_RATE}` | Same as Show HN |

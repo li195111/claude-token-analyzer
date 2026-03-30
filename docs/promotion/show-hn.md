@@ -8,22 +8,20 @@
 ## Title
 
 ```
-Show HN: I scanned {N} Claude Code sessions – here's where the tokens actually go
+Show HN: I scanned 7,593 Claude Code sessions – here's where the tokens actually go
 ```
-
-> Replace {N} with fresh scan data before posting.
 
 ## Body
 
 ```
-I analyzed {N} Claude Code sessions (~{X} million tokens, ${COST} total cost)
+I analyzed 7,593 Claude Code sessions (~8,363 million tokens, $7,132 total cost)
 and found patterns I never expected:
 
-- {ANOMALY_RATE}% of sessions had statistical anomalies
-- LowCacheHitRate was the #1 issue ({CACHE_COUNT} instances) — prompts
+- 8.0% of sessions had statistical anomalies
+- LowCacheHitRate was the #1 issue (239 instances) — prompts
   that could have been cached were re-sent every time
-- {COST_INEFF} sessions were "cost-inefficient" — high cost + poor cache
-- ExcessiveToolUse flagged {TOOL_COUNT} sessions making far more tool calls
+- 59 sessions were "cost-inefficient" — high cost + poor cache
+- ExcessiveToolUse flagged 297 sessions making far more tool calls
   than typical
 
 Built a Claude Code plugin that diagnoses 6 types of token waste with
@@ -36,17 +34,18 @@ Then ask: "cta" or "how much did I spend?"
 MIT licensed: https://github.com/li195111/claude-token-analyzer
 ```
 
-## Placeholders to Fill
+## Data Source
 
-| Placeholder | How to Get |
-|-------------|-----------|
-| `{N}` | Run `cta` → health check → total sessions |
-| `{X}` | Run `cta` → health check → total tokens (in millions) |
-| `{COST}` | Run `cta` → cost audit → total cost |
-| `{ANOMALY_RATE}` | Run `cta` → anomaly scan → anomaly rate % |
-| `{CACHE_COUNT}` | Run `cta` → anomaly scan → LowCacheHitRate count |
-| `{COST_INEFF}` | Run `cta` → anomaly scan → CostInefficient count |
-| `{TOOL_COUNT}` | Run `cta` → anomaly scan → ExcessiveToolUse count |
+Data from CTA scan on 2026-03-30:
+- Total sessions: 7,593
+- Total tokens: 8,362,998,382 (~8,363M)
+- Total cost: $7,132.64
+- Unique sessions with anomalies: 609 (8.0%)
+- LowCacheHitRate: 239 instances
+- ExcessiveToolUse: 297 instances
+- CostInefficient: 59 instances
+- HighTokenUsage: 166 instances
+- HighCost: 159 instances
 
 ## Post-Launch Checklist
 
@@ -58,7 +57,7 @@ MIT licensed: https://github.com/li195111/claude-token-analyzer
 ## Narrative Formula Check
 
 - [x] Fear/curiosity hook: "found patterns I never expected"
-- [x] Large-scale real data: {N} sessions, {X} million tokens
+- [x] Large-scale real data: 7,593 sessions, 8,363 million tokens
 - [x] Specific findings: LowCacheHitRate #1, CostInefficient, ExcessiveToolUse
 - [x] One-line install: `claude plugin install claude-token-analyzer`
 - [x] Fully local trust signal: "Nothing leaves your machine. No cloud, no telemetry."

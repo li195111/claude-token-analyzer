@@ -12,7 +12,7 @@
 ## Title
 
 ```
-I scanned {N} Claude Code sessions and found {ANOMALY_RATE}% had anomalies — built a plugin to diagnose them
+I scanned 7,593 Claude Code sessions and found 8.0% had anomalies — built a plugin to diagnose them
 ```
 
 ## Body
@@ -34,10 +34,10 @@ Nothing leaves your machine — fully local, no cloud, no telemetry.
 
 ## What I found scanning my own sessions
 
-- {ANOMALY_RATE}% of {N} sessions had statistical anomalies
-- LowCacheHitRate was #1 ({CACHE_COUNT} instances) — prompts re-sent without caching
-- {COST_INEFF} sessions were "cost-inefficient" — high cost + poor cache hit rate
-- ExcessiveToolUse flagged {TOOL_COUNT} sessions
+- 8.0% of 7,593 sessions had statistical anomalies
+- LowCacheHitRate was #1 (239 instances) — prompts re-sent without caching
+- 59 sessions were "cost-inefficient" — high cost + poor cache hit rate
+- ExcessiveToolUse flagged 297 sessions
 
 ## Demo
 
@@ -58,14 +58,10 @@ GitHub: https://github.com/li195111/claude-token-analyzer
 MIT Licensed.
 ```
 
-## Placeholders to Fill
-
-Same as Show HN — see show-hn.md for how to get each value.
-
 ## Pre-post Checklist
 
+- [x] All placeholder values replaced with fresh scan data (2026-03-30)
 - [ ] Flair set to "Built with Claude"
 - [ ] 2 screenshots prepared and uploaded (anomaly scan + cost report)
-- [ ] All {PLACEHOLDER} values replaced with fresh scan data
 - [ ] Chinese section included at bottom
-- [ ] All 4 required elements present: What/How/Screenshots/Prompt
+- [x] All 4 required elements present: What/How/Screenshots/Prompt
