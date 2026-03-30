@@ -12,7 +12,7 @@
 ## Title
 
 ```
-I scanned 7,593 Claude Code sessions and found 8.0% had anomalies — built a plugin to diagnose them
+I scanned 8,392 Claude Code sessions and found 1,015 anomalies — built a plugin to diagnose them
 ```
 
 ## Body
@@ -34,10 +34,10 @@ Nothing leaves your machine — fully local, no cloud, no telemetry.
 
 ## What I found scanning my own sessions
 
-- 8.0% of 7,593 sessions had statistical anomalies
-- LowCacheHitRate was #1 (239 instances) — prompts re-sent without caching
-- 59 sessions were "cost-inefficient" — high cost + poor cache hit rate
-- ExcessiveToolUse flagged 297 sessions
+- 1,015 anomalies detected across 8,392 sessions
+- ExcessiveToolUse was #1 (320 sessions) — far more tool calls than typical
+- LowCacheHitRate hit 261 sessions — prompts re-sent without caching
+- 66 sessions were "cost-inefficient" — high cost + poor cache hit rate
 
 ## Demo
 

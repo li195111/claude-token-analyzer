@@ -8,21 +8,20 @@
 ## Title
 
 ```
-Show HN: I scanned 7,593 Claude Code sessions – here's where the tokens actually go
+Show HN: I scanned 8,392 Claude Code sessions – here's where the tokens actually go
 ```
 
 ## Body
 
 ```
-I analyzed 7,593 Claude Code sessions (~8,363 million tokens, $7,132 total cost)
+I analyzed 8,392 Claude Code sessions (~8.4 billion tokens, $7,132 total cost)
 and found patterns I never expected:
 
-- 8.0% of sessions had statistical anomalies
-- LowCacheHitRate was the #1 issue (239 instances) — prompts
-  that could have been cached were re-sent every time
-- 59 sessions were "cost-inefficient" — high cost + poor cache
-- ExcessiveToolUse flagged 297 sessions making far more tool calls
-  than typical
+- 1,015 anomalies detected across 5 categories
+- ExcessiveToolUse was #1 (320 sessions) — far more tool calls than typical
+- LowCacheHitRate hit 261 sessions — prompts that could have been cached
+  were re-sent every time
+- 66 sessions were "cost-inefficient" — high cost + poor cache hit rate
 
 Built a Claude Code plugin that diagnoses 6 types of token waste with
 severity scoring. Fully local — parses your ~/.claude JSONL files into
@@ -36,16 +35,16 @@ MIT licensed: https://github.com/li195111/claude-token-analyzer
 
 ## Data Source
 
-Data from CTA scan on 2026-03-30:
-- Total sessions: 7,593
-- Total tokens: 8,362,998,382 (~8,363M)
+Data from CTA CLI scan on 2026-03-30:
+- Sessions scanned: 8,392
+- Total tokens: ~8.4 billion
 - Total cost: $7,132.64
-- Unique sessions with anomalies: 609 (8.0%)
-- LowCacheHitRate: 239 instances
-- ExcessiveToolUse: 297 instances
-- CostInefficient: 59 instances
-- HighTokenUsage: 166 instances
-- HighCost: 159 instances
+- Total anomaly entries: 1,015
+- ExcessiveToolUse: 320 instances
+- LowCacheHitRate: 261 instances
+- HighTokenUsage: 194 instances
+- HighCost: 174 instances
+- CostInefficient: 66 instances
 
 ## Post-Launch Checklist
 
@@ -57,7 +56,7 @@ Data from CTA scan on 2026-03-30:
 ## Narrative Formula Check
 
 - [x] Fear/curiosity hook: "found patterns I never expected"
-- [x] Large-scale real data: 7,593 sessions, 8,363 million tokens
+- [x] Large-scale real data: 8,392 sessions, 8.4 billion tokens
 - [x] Specific findings: LowCacheHitRate #1, CostInefficient, ExcessiveToolUse
 - [x] One-line install: `claude plugin install claude-token-analyzer`
 - [x] Fully local trust signal: "Nothing leaves your machine. No cloud, no telemetry."

@@ -13,8 +13,8 @@ Post after Show HN and Reddit (same day).
 ```
 Your Claude Code sessions might be burning tokens you can't see.
 
-I scanned 7,593 sessions and found 8.0% had anomalies — mostly
-prompts that should have been cached but weren't.
+I scanned 8,392 sessions and found 1,015 anomalies — mostly
+excessive tool calls and prompts that should have been cached but weren't.
 
 Built a plugin that diagnoses 6 types of token waste with severity scoring.
 Fully local (JSONL → SQLite, nothing leaves your machine).
