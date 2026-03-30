@@ -46,7 +46,7 @@ This is a Rust-based Claude Code plugin that parses JSONL session logs from `~/.
 
 - **ParseResult is zero-computation**: `parser.rs` only extracts and deduplicates data from JSONL; all cost calculations happen in `analyzer.rs` using `PricingTable`
 - **Pricing is embedded**: `config/pricing.toml` is read at runtime (or overridden via `CTA_PRICING_PATH`). Unknown models fall back to Sonnet-equivalent pricing under `[defaults]`
-- **Three-mode path resolution** (`config.rs`): env var override > `$CLAUDE_PLUGIN_ROOT` plugin mode > `$HOME/.claude/` standalone mode. Projects dir has no plugin-mode override since Claude Code always writes sessions to `~/.claude/projects/`
+- **Four-mode path resolution** (`config.rs`): env var override > `$CLAUDE_PLUGIN_ROOT` plugin mode > `$CLAUDE_CONFIG_DIR` config dir mode > `$HOME/.claude/` standalone mode
 - **Anomaly detection**: `detector.rs` uses standard deviation thresholds for 5 anomaly types, but `CostInefficient` uses absolute mean-based comparison (above-mean cost AND below-mean cache hit rate), making it independent of the `stddev_threshold` parameter
 
 ### Module Responsibilities
