@@ -2,3 +2,7 @@ mcp-server/target/
 data/*.db
 data/token-analyzer-archive/
 .DS_Store
+# Forked repos cloned by automation agents
+awesome-claude-code/
+awesome-claude-code-1/
+awesome-claude-plugins/
