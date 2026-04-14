@@ -211,9 +211,18 @@ Secondary drift at handoff:
   - `cta-usage-pattern`
 - Release binary verified present at:
   - `mcp-server/target/release/cta-mcp-server`
+- `codex mcp get token-analyzer` confirms Codex sees the mounted server as:
+  - `enabled: true`
+  - `transport: stdio`
+  - `command: /Users/liyuefong/Desktop/claude-token-analyzer/scripts/run-codex.sh`
+- A fresh `codex exec` session can enumerate the mounted MCP server family and reported:
+  - `token_analyzer`
+  - `workflow_gate`
+  - `codex_apps`
 
 ### Operational note
 - Codex must be restarted after this mount so the current session can pick up the new MCP server and skill symlinks.
+- A nested `codex exec` attempt to actually run `token-analyzer.sync_db` from inside the current Codex-controlled environment returned `user cancelled MCP tool call` twice. Treat this as a runtime limitation of nested validation in the current session, not as evidence that the mount failed. The static config state and fresh-session MCP enumeration both succeeded.
 
 ## Final Verification Evidence
 
