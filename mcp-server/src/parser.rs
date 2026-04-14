@@ -234,7 +234,16 @@ fn parse_tools(content_value: Option<&Value>) -> Vec<ToolUseInfo> {
             }
             let name = item.get("name")?.as_str()?.to_string();
             let tool_use_id = item.get("id")?.as_str()?.to_string();
-            Some(ToolUseInfo { name, tool_use_id })
+            let file_path = item
+                .get("input")
+                .and_then(|input| input.get("file_path"))
+                .and_then(|v| v.as_str())
+                .map(|s| s.to_string());
+            Some(ToolUseInfo {
+                name,
+                tool_use_id,
+                file_path,
+            })
         })
         .collect()
 }
@@ -500,6 +509,20 @@ mod tests {
         assert_eq!(result.model_usage.len(), 1);
         assert_eq!(result.model_usage[0].model, "claude-opus-4-6");
         assert_eq!(result.model_usage[0].turn_count, 2);
+    }
+
+    #[test]
+    fn test_parse_tool_file_path_when_present() {
+        let line = r#"{"type":"assistant","requestId":"req_fp","timestamp":"2026-03-20T06:00:00.000Z","isSidechain":false,"message":{"model":"claude-opus-4-6","id":"msg_fp","role":"assistant","content":[{"type":"text","text":"editing"},{"type":"tool_use","id":"toolu_fp","name":"Edit","input":{"file_path":"/src/main.rs"}}],"stop_reason":"tool_use","usage":{"input_tokens":100,"output_tokens":50,"cache_creation_input_tokens":0,"cache_read_input_tokens":0}}}"#;
+        let file = write_temp_jsonl(&[line]);
+        let result = parse_jsonl_file(file.path()).expect("Parse should succeed");
+
+        assert_eq!(result.assistant_turns.len(), 1);
+        assert_eq!(result.assistant_turns[0].tools.len(), 1);
+        assert_eq!(
+            result.assistant_turns[0].tools[0].file_path.as_deref(),
+            Some("/src/main.rs")
+        );
     }
 
     #[test]
