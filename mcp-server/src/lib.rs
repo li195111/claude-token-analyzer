@@ -2,6 +2,7 @@
 
 pub mod analyzer;
 pub mod archiver;
+pub mod cli_lib;
 pub mod config;
 pub mod detector;
 pub mod format;
