@@ -2,8 +2,8 @@
 //!
 //! Resolution priority:
 //! 1. Environment variable override ($CTA_DB_PATH, $CTA_PROJECTS_DIR, $CTA_ARCHIVE_DIR)
-//! 2. Plugin mode ($CLAUDE_PLUGIN_ROOT/data/...)
-//! 3. Config dir mode ($CLAUDE_CONFIG_DIR/...)
+//! 2. Plugin mode ($CLAUDE_PLUGIN_ROOT/data/...) for DB/archive only
+//! 3. Claude config dir ($CLAUDE_CONFIG_DIR/...)
 //! 4. Standalone mode ($HOME/.claude/...)
 
 use std::env;
@@ -13,7 +13,7 @@ use anyhow::{Context, Result};
 
 /// Resolve the database file path.
 ///
-/// Priority: `$CTA_DB_PATH` > `$CLAUDE_PLUGIN_ROOT/data/token-analyzer.db` > `$CLAUDE_CONFIG_DIR/token-analyzer.db` > `$HOME/.claude/token-analyzer.db`
+/// Priority: `$CTA_DB_PATH` > `$CLAUDE_PLUGIN_ROOT/data/token-analyzer.db` > `$HOME/.claude/token-analyzer.db`
 pub fn resolve_db_path() -> Result<PathBuf> {
     if let Ok(p) = env::var("CTA_DB_PATH") {
         return Ok(PathBuf::from(p));
@@ -21,27 +21,30 @@ pub fn resolve_db_path() -> Result<PathBuf> {
     if let Ok(root) = env::var("CLAUDE_PLUGIN_ROOT") {
         return Ok(PathBuf::from(root).join("data").join("token-analyzer.db"));
     }
-    let base = claude_config_dir_or_home()?;
-    Ok(base.join("token-analyzer.db"))
+    let home = home_dir()?;
+    Ok(home.join(".claude").join("token-analyzer.db"))
 }
 
 /// Resolve the projects directory path.
 ///
 /// Priority: `$CTA_PROJECTS_DIR` > `$CLAUDE_CONFIG_DIR/projects` > `$HOME/.claude/projects`
 ///
-/// Note: No plugin-mode override — Claude Code writes session data to its config
-/// directory, which defaults to `~/.claude/` but can be overridden via `$CLAUDE_CONFIG_DIR`.
+/// Note: No plugin-mode override — Claude Code writes session logs under the
+/// Claude config directory, not under the plugin root.
 pub fn resolve_projects_dir() -> Result<PathBuf> {
     if let Ok(p) = env::var("CTA_PROJECTS_DIR") {
         return Ok(PathBuf::from(p));
     }
-    let base = claude_config_dir_or_home()?;
-    Ok(base.join("projects"))
+    if let Ok(config_dir) = env::var("CLAUDE_CONFIG_DIR") {
+        return Ok(PathBuf::from(config_dir).join("projects"));
+    }
+    let home = home_dir()?;
+    Ok(home.join(".claude").join("projects"))
 }
 
 /// Resolve the archive directory path.
 ///
-/// Priority: `$CTA_ARCHIVE_DIR` > `$CLAUDE_PLUGIN_ROOT/data/token-analyzer-archive` > `$CLAUDE_CONFIG_DIR/token-analyzer-archive` > `$HOME/.claude/token-analyzer-archive`
+/// Priority: `$CTA_ARCHIVE_DIR` > `$CLAUDE_PLUGIN_ROOT/data/token-analyzer-archive` > `$HOME/.claude/token-analyzer-archive`
 pub fn resolve_archive_dir() -> Result<PathBuf> {
     if let Ok(p) = env::var("CTA_ARCHIVE_DIR") {
         return Ok(PathBuf::from(p));
@@ -51,24 +54,13 @@ pub fn resolve_archive_dir() -> Result<PathBuf> {
             .join("data")
             .join("token-analyzer-archive"));
     }
-    let base = claude_config_dir_or_home()?;
-    Ok(base.join("token-analyzer-archive"))
-}
-
-/// Resolve the base config directory.
-///
-/// Returns `$CLAUDE_CONFIG_DIR` if set, otherwise `$HOME/.claude`.
-fn claude_config_dir_or_home() -> Result<PathBuf> {
-    if let Ok(dir) = env::var("CLAUDE_CONFIG_DIR") {
-        return Ok(PathBuf::from(dir));
-    }
     let home = home_dir()?;
-    Ok(home.join(".claude"))
+    Ok(home.join(".claude").join("token-analyzer-archive"))
 }
 
 fn home_dir() -> Result<PathBuf> {
     env::var("HOME").map(PathBuf::from).context(
-        "HOME environment variable not set (and no CTA_DB_PATH / CLAUDE_PLUGIN_ROOT / CLAUDE_CONFIG_DIR override)",
+        "HOME environment variable not set (and no CTA_DB_PATH / CLAUDE_PLUGIN_ROOT override)",
     )
 }
 
@@ -82,7 +74,11 @@ mod tests {
 
     /// Helper: run closure with env vars set, then restore originals
     fn with_env_vars<F: FnOnce() -> R, R>(vars: &[(&str, Option<&str>)], f: F) -> R {
-        let _guard = ENV_LOCK.lock().unwrap();
+        // Recover from poisoned mutex so that a panicking test (e.g., a TDD red-light test
+        // that intentionally fails an assertion) does not cascade and corrupt ENV state
+        // for subsequent tests. Using unwrap_or_else(|e| e.into_inner()) is the standard
+        // Rust pattern for poison recovery in test helpers.
+        let _guard = ENV_LOCK.lock().unwrap_or_else(|e| e.into_inner());
         let originals: Vec<(&str, Option<String>)> =
             vars.iter().map(|(k, _)| (*k, env::var(k).ok())).collect();
 
@@ -133,30 +129,11 @@ mod tests {
     }
 
     #[test]
-    fn test_resolve_db_path_config_dir() {
-        with_env_vars(
-            &[
-                ("CTA_DB_PATH", None),
-                ("CLAUDE_PLUGIN_ROOT", None),
-                ("CLAUDE_CONFIG_DIR", Some("/custom/claude-config")),
-            ],
-            || {
-                let path = resolve_db_path().unwrap();
-                assert_eq!(
-                    path,
-                    PathBuf::from("/custom/claude-config/token-analyzer.db")
-                );
-            },
-        );
-    }
-
-    #[test]
     fn test_resolve_db_path_standalone() {
         with_env_vars(
             &[
                 ("CTA_DB_PATH", None),
                 ("CLAUDE_PLUGIN_ROOT", None),
-                ("CLAUDE_CONFIG_DIR", None),
                 ("HOME", Some("/home/testuser")),
             ],
             || {
@@ -171,24 +148,31 @@ mod tests {
 
     #[test]
     fn test_resolve_projects_dir_from_env() {
-        with_env_vars(&[("CTA_PROJECTS_DIR", Some("/custom/projects"))], || {
-            let path = resolve_projects_dir().unwrap();
-            assert_eq!(path, PathBuf::from("/custom/projects"));
-        });
+        with_env_vars(
+            &[
+                ("CTA_PROJECTS_DIR", Some("/custom/projects")),
+                ("CLAUDE_CONFIG_DIR", Some("/home/testuser/.config/claude")),
+            ],
+            || {
+                let path = resolve_projects_dir().unwrap();
+                assert_eq!(path, PathBuf::from("/custom/projects"));
+            },
+        );
     }
 
     #[test]
-    fn test_resolve_projects_dir_config_dir() {
+    fn test_resolve_projects_dir_from_config_dir() {
         with_env_vars(
             &[
                 ("CTA_PROJECTS_DIR", None),
-                ("CLAUDE_CONFIG_DIR", Some("/custom/claude-config")),
+                ("CLAUDE_CONFIG_DIR", Some("/home/testuser/.config/claude")),
+                ("HOME", Some("/home/testuser")),
             ],
             || {
                 let path = resolve_projects_dir().unwrap();
                 assert_eq!(
                     path,
-                    PathBuf::from("/custom/claude-config/projects")
+                    PathBuf::from("/home/testuser/.config/claude/projects")
                 );
             },
         );
@@ -210,64 +194,11 @@ mod tests {
     }
 
     #[test]
-    fn test_resolve_archive_dir_config_dir() {
-        with_env_vars(
-            &[
-                ("CTA_ARCHIVE_DIR", None),
-                ("CLAUDE_PLUGIN_ROOT", None),
-                ("CLAUDE_CONFIG_DIR", Some("/custom/claude-config")),
-            ],
-            || {
-                let path = resolve_archive_dir().unwrap();
-                assert_eq!(
-                    path,
-                    PathBuf::from("/custom/claude-config/token-analyzer-archive")
-                );
-            },
-        );
-    }
-
-    #[test]
-    fn test_plugin_root_takes_priority_over_config_dir() {
-        with_env_vars(
-            &[
-                ("CTA_DB_PATH", None),
-                ("CLAUDE_PLUGIN_ROOT", Some("/plugins/cta")),
-                ("CLAUDE_CONFIG_DIR", Some("/custom/claude-config")),
-            ],
-            || {
-                let path = resolve_db_path().unwrap();
-                assert_eq!(path, PathBuf::from("/plugins/cta/data/token-analyzer.db"));
-            },
-        );
-    }
-
-    #[test]
-    fn test_config_dir_fallback_without_home() {
+    fn test_resolve_fails_without_home() {
         with_env_vars(
             &[
                 ("CTA_DB_PATH", None),
                 ("CLAUDE_PLUGIN_ROOT", None),
-                ("CLAUDE_CONFIG_DIR", Some("/custom/claude-config")),
-                ("HOME", None),
-            ],
-            || {
-                let path = resolve_db_path().unwrap();
-                assert_eq!(
-                    path,
-                    PathBuf::from("/custom/claude-config/token-analyzer.db")
-                );
-            },
-        );
-    }
-
-    #[test]
-    fn test_resolve_fails_without_home_or_config_dir() {
-        with_env_vars(
-            &[
-                ("CTA_DB_PATH", None),
-                ("CLAUDE_PLUGIN_ROOT", None),
-                ("CLAUDE_CONFIG_DIR", None),
                 ("HOME", None),
             ],
             || {
@@ -278,6 +209,139 @@ mod tests {
                     err_msg.contains("HOME"),
                     "Error should mention HOME: {}",
                     err_msg
+                );
+            },
+        );
+    }
+
+    // ============================================================
+    // Path-resolution coverage for CLAUDE_CONFIG_DIR coexistence and precedence
+    // ============================================================
+
+    #[test]
+    fn test_resolve_archive_dir_from_env() {
+        with_env_vars(
+            &[
+                ("CTA_ARCHIVE_DIR", Some("/custom/archive")),
+                ("CLAUDE_PLUGIN_ROOT", None),
+                ("CLAUDE_CONFIG_DIR", None),
+            ],
+            || {
+                let path = resolve_archive_dir().unwrap();
+                assert_eq!(path, PathBuf::from("/custom/archive"));
+            },
+        );
+    }
+
+    #[test]
+    fn test_resolve_archive_dir_plugin_mode() {
+        with_env_vars(
+            &[
+                ("CTA_ARCHIVE_DIR", None),
+                ("CLAUDE_PLUGIN_ROOT", Some("/plugins/cta")),
+                ("CLAUDE_CONFIG_DIR", None),
+            ],
+            || {
+                let path = resolve_archive_dir().unwrap();
+                assert_eq!(
+                    path,
+                    PathBuf::from("/plugins/cta/data/token-analyzer-archive")
+                );
+            },
+        );
+    }
+
+    #[test]
+    fn test_resolve_archive_dir_standalone() {
+        with_env_vars(
+            &[
+                ("CTA_ARCHIVE_DIR", None),
+                ("CLAUDE_PLUGIN_ROOT", None),
+                ("CLAUDE_CONFIG_DIR", None),
+                ("HOME", Some("/home/testuser")),
+            ],
+            || {
+                let path = resolve_archive_dir().unwrap();
+                assert_eq!(
+                    path,
+                    PathBuf::from("/home/testuser/.claude/token-analyzer-archive")
+                );
+            },
+        );
+    }
+
+    #[test]
+    fn test_plugin_root_takes_priority_over_config_dir_for_archive() {
+        // When BOTH CLAUDE_PLUGIN_ROOT and CLAUDE_CONFIG_DIR are set,
+        // archive dir should use PLUGIN_ROOT (plugin mode takes highest priority).
+        with_env_vars(
+            &[
+                ("CTA_ARCHIVE_DIR", None),
+                ("CLAUDE_PLUGIN_ROOT", Some("/plugins/cta")),
+                ("CLAUDE_CONFIG_DIR", Some("/home/user/.config/claude")),
+                ("HOME", Some("/home/user")),
+            ],
+            || {
+                let path = resolve_archive_dir().unwrap();
+                assert_eq!(
+                    path,
+                    PathBuf::from("/plugins/cta/data/token-analyzer-archive"),
+                    "CLAUDE_PLUGIN_ROOT should take priority over CLAUDE_CONFIG_DIR for archive dir"
+                );
+            },
+        );
+    }
+
+    #[test]
+    fn test_projects_ignore_plugin_root_without_config_dir() {
+        with_env_vars(
+            &[
+                ("CTA_PROJECTS_DIR", None),
+                ("CLAUDE_PLUGIN_ROOT", Some("/plugins/cta")),
+                ("CLAUDE_CONFIG_DIR", None),
+                ("HOME", Some("/home/user")),
+            ],
+            || {
+                let path = resolve_projects_dir().unwrap();
+                assert_eq!(path, PathBuf::from("/home/user/.claude/projects"));
+            },
+        );
+    }
+
+    #[test]
+    fn test_coexistence_plugin_root_and_config_dir_split_behavior() {
+        // When BOTH CLAUDE_PLUGIN_ROOT and CLAUDE_CONFIG_DIR are set:
+        //   db      → PLUGIN_ROOT/data/token-analyzer.db
+        //   archive → PLUGIN_ROOT/data/token-analyzer-archive
+        //   projects → CONFIG_DIR/projects  (NOT PLUGIN_ROOT/projects — Claude Code always writes here)
+        with_env_vars(
+            &[
+                ("CTA_DB_PATH", None),
+                ("CTA_ARCHIVE_DIR", None),
+                ("CTA_PROJECTS_DIR", None),
+                ("CLAUDE_PLUGIN_ROOT", Some("/plugins/cta")),
+                ("CLAUDE_CONFIG_DIR", Some("/home/user/.config/claude")),
+                ("HOME", Some("/home/user")),
+            ],
+            || {
+                let db_path = resolve_db_path().unwrap();
+                let archive_path = resolve_archive_dir().unwrap();
+                let projects_path = resolve_projects_dir().unwrap();
+
+                assert_eq!(
+                    db_path,
+                    PathBuf::from("/plugins/cta/data/token-analyzer.db"),
+                    "db should use PLUGIN_ROOT"
+                );
+                assert_eq!(
+                    archive_path,
+                    PathBuf::from("/plugins/cta/data/token-analyzer-archive"),
+                    "archive should use PLUGIN_ROOT"
+                );
+                assert_eq!(
+                    projects_path,
+                    PathBuf::from("/home/user/.config/claude/projects"),
+                    "projects should use CLAUDE_CONFIG_DIR (PR #7 feature)"
                 );
             },
         );
