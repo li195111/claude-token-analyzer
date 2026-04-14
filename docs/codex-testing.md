@@ -18,7 +18,23 @@ This produces:
 mcp-server/target/release/cta-mcp-server
 ```
 
-## 2. Mount the MCP server into Codex
+## 2. Fast path: one-shot install
+
+Run:
+
+```bash
+bash scripts/install-codex-test-assets.sh
+```
+
+This script:
+
+- appends a `token-analyzer` MCP server entry to `~/.codex/config.toml`
+- links the CTA skills into `~/.codex/skills/`
+- refuses to overwrite conflicting existing CTA skill directories
+
+If you prefer to update Codex config manually, use the next section instead.
+
+## 3. Mount the MCP server into Codex manually
 
 Add this block to `~/.codex/config.toml`:
 
@@ -40,7 +56,7 @@ command = "/Users/liyuefong/Desktop/claude-token-analyzer/scripts/run-codex.sh"
 
 This keeps Codex smoke tests isolated from plugin DB/archive state.
 
-## 3. Link repo CTA skills into Codex
+## 4. Link repo CTA skills into Codex manually
 
 Run:
 
@@ -60,11 +76,11 @@ The script creates symlinks in `~/.codex/skills/` for:
 
 The script refuses to overwrite existing skill directories or symlinks.
 
-## 4. Restart Codex
+## 5. Restart Codex
 
 Start a new Codex session in this repo after the MCP config and skill symlinks are in place.
 
-## 5. MCP smoke tests inside Codex
+## 6. MCP smoke tests inside Codex
 
 Use prompts that force direct tool invocation:
 
@@ -91,7 +107,7 @@ Expected checks:
 - unique prefix lookup succeeds
 - symbolic business error is exposed in `error.data.code`
 
-## 6. Skill smoke tests inside Codex
+## 7. Skill smoke tests inside Codex
 
 After the symlinks are installed, test native skill routing with these prompts:
 
@@ -122,7 +138,7 @@ Expected checks:
 - output includes `pattern`, `severity`, signal summary, and 2-4 workflow adjustments
 - ambiguous prefix causes the skill to ask for a longer id instead of guessing
 
-## 7. Fast local verification before Codex mount
+## 8. Fast local verification before Codex mount
 
 These repo tests should already be green before debugging Codex integration:
 
@@ -131,7 +147,7 @@ cargo test --all-targets --manifest-path mcp-server/Cargo.toml
 cargo clippy --all-targets --manifest-path mcp-server/Cargo.toml -- -D warnings
 ```
 
-## 8. Troubleshooting
+## 9. Troubleshooting
 
 ### Codex cannot start the MCP server
 
