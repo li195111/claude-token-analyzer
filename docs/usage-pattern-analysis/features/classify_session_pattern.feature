@@ -4,8 +4,8 @@ Feature: classify_session_pattern MCP Tool
   以便了解我的工作模式並採取針對性優化措施
 
   Background:
-    Given CTA 資料庫已與最新 JSONL 同步（sync_db 已執行）
-    And 所有 session 至少包含 3 個對話輪數
+    Given projects_dir 下的 JSONL 可直接被 CTA 讀取
+    And 所有可分類 session 至少包含 3 個 assistant turns
 
   # ================================================================
   # 正常 Pattern 分類
@@ -68,10 +68,10 @@ Feature: classify_session_pattern MCP Tool
     And evidence 應包含 metric "repeated_edit_peak" value 6 threshold 4 direction "above"
     And evidence 應包含 metric "output_token_ratio" value 0.52 threshold 0.40 direction "above"
 
-  Scenario: 偵測 correction_spiral — alert 等級（極嚴重迴圈）
+  Scenario: 偵測 correction_spiral — alert 等級（任一 alert threshold 即升級）
     Given 一個 session 有以下特徵:
-      | repeated_edit_peak  | 10   |
-      | output_token_ratio  | 0.65 |
+      | repeated_edit_peak  | 8    |
+      | output_token_ratio  | 0.45 |
     When 呼叫 classify_session_pattern 傳入此 session_id
     Then pattern 應為 "correction_spiral"
     And severity 應為 "alert"
@@ -139,24 +139,21 @@ Feature: classify_session_pattern MCP Tool
   # ================================================================
 
   Scenario: session 輪數不足（無法有意義分類）
-    Given 一個 session 只有 2 個對話輪數
+    Given 一個 session 只有 2 個 assistant turns
     When 呼叫 classify_session_pattern 傳入此 session_id
-    Then 應返回 MCP error "INSUFFICIENT_DATA"
-    And error message 應說明「至少需要 3 個輪數才能分類」
+    Then transport error.code 應為 "INVALID_PARAMS"
+    And error.data.code 應為 "INSUFFICIENT_DATA"
+    And error message 應說明「至少需要 3 個 assistant turns 才能分類」
 
   Scenario: session_id 不存在
     Given session_id "nonexistent0" 不存在於 projects_dir
     When 呼叫 classify_session_pattern 傳入 "nonexistent0"
-    Then 應返回 MCP error "SESSION_NOT_FOUND"
-
-  Scenario: session 存在但未 sync 到 DB
-    Given 一個 JSONL 檔案存在於 projects_dir
-    But 此 session 不在 SQLite 資料庫中（sync_db 未執行）
-    When 呼叫 classify_session_pattern 傳入此 session_id
-    Then 應返回 MCP error "DB_NOT_SYNCED"
-    And error message 應建議使用者先執行 sync_db
+    Then transport error.code 應為 "INVALID_PARAMS"
+    And error.data.code 應為 "SESSION_NOT_FOUND"
 
   Scenario: session_id 前綴有衝突（多個 session 符合）
     Given projects_dir 中有兩個 session_id 以 "abc12345" 開頭
     When 呼叫 classify_session_pattern 傳入 "abc12345"
-    Then 應返回 MCP error 說明 session_id 不唯一，要求提供更長的 ID
+    Then transport error.code 應為 "INVALID_PARAMS"
+    And error.data.code 應為 "AMBIGUOUS_SESSION_ID"
+    And error message 應說明 session_id 不唯一，要求提供更長的 ID

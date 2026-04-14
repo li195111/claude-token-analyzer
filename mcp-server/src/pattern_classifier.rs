@@ -12,6 +12,7 @@
 //! 3. Return the first matching pattern with severity and evidence
 
 use anyhow::{bail, Result};
+use serde::{Deserialize, Serialize};
 
 // ============================================================
 // Thresholds — all as named constants (zero hardcoding)
@@ -61,7 +62,7 @@ pub const MIN_TURNS_FOR_CLASSIFICATION: u32 = 3;
 // ============================================================
 
 /// Hard signals extracted from a single session.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Signals {
     /// Fraction of input tokens served from cache (0.0–1.0).
     pub cache_hit_rate: f64,
@@ -80,7 +81,8 @@ pub struct Signals {
 }
 
 /// Classified session usage pattern.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
 pub enum Pattern {
     /// No unusual characteristics detected.
     Normal,
@@ -99,7 +101,8 @@ pub enum Pattern {
 }
 
 /// Severity level of a detected pattern.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
 pub enum Severity {
     /// Informational — no action required.
     Info,
@@ -110,16 +113,19 @@ pub enum Severity {
 }
 
 /// Which side of a threshold the actual signal value fell on.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
 pub enum Direction {
     /// Actual value is above the threshold.
     Above,
+    /// Actual value equals the threshold.
+    Equal,
     /// Actual value is below the threshold.
     Below,
 }
 
 /// A single piece of evidence supporting the classification.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Evidence {
     /// Signal name (e.g., `"cache_hit_rate"`).
     pub metric: String,
@@ -132,10 +138,12 @@ pub struct Evidence {
 }
 
 /// Result of classifying a session's usage pattern.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PatternResult {
     /// The dominant pattern detected.
     pub pattern: Pattern,
+    /// Raw signals that were classified.
+    pub signals: Signals,
     /// Severity of the detected pattern.
     pub severity: Severity,
     /// Signals that triggered the classification (empty for `Normal`).
@@ -174,11 +182,7 @@ pub fn classify(signals: Signals) -> PatternResult {
         return r;
     }
 
-    PatternResult {
-        pattern: Pattern::Normal,
-        severity: Severity::Info,
-        evidence: vec![],
-    }
+    build_result(Pattern::Normal, Severity::Info, signals, vec![])
 }
 
 /// Classify with input validation.
@@ -187,7 +191,7 @@ pub fn classify(signals: Signals) -> PatternResult {
 pub fn classify_with_validation(signals: Signals) -> Result<PatternResult> {
     if signals.turn_count < MIN_TURNS_FOR_CLASSIFICATION {
         bail!(
-            "Insufficient data: session has {} turn(s), minimum is {}.",
+            "Insufficient data: session has {} assistant turn(s), minimum is {}.",
             signals.turn_count,
             MIN_TURNS_FOR_CLASSIFICATION
         );
@@ -201,27 +205,19 @@ pub fn classify_with_validation(signals: Signals) -> Result<PatternResult> {
 
 fn check_cold_session(s: &Signals) -> Option<PatternResult> {
     if s.cache_hit_rate < COLD_SESSION_CACHE_HIT_ALERT {
-        Some(PatternResult {
-            pattern: Pattern::ColdSession,
-            severity: Severity::Alert,
-            evidence: vec![Evidence {
-                metric: "cache_hit_rate".to_string(),
-                value: s.cache_hit_rate,
-                threshold: COLD_SESSION_CACHE_HIT_ALERT,
-                direction: Direction::Below,
-            }],
-        })
+        Some(build_result(
+            Pattern::ColdSession,
+            Severity::Alert,
+            s.clone(),
+            vec![below("cache_hit_rate", s.cache_hit_rate, COLD_SESSION_CACHE_HIT_ALERT)],
+        ))
     } else if s.cache_hit_rate < COLD_SESSION_CACHE_HIT_WARN {
-        Some(PatternResult {
-            pattern: Pattern::ColdSession,
-            severity: Severity::Warn,
-            evidence: vec![Evidence {
-                metric: "cache_hit_rate".to_string(),
-                value: s.cache_hit_rate,
-                threshold: COLD_SESSION_CACHE_HIT_WARN,
-                direction: Direction::Below,
-            }],
-        })
+        Some(build_result(
+            Pattern::ColdSession,
+            Severity::Warn,
+            s.clone(),
+            vec![below("cache_hit_rate", s.cache_hit_rate, COLD_SESSION_CACHE_HIT_WARN)],
+        ))
     } else {
         None
     }
@@ -234,44 +230,50 @@ fn check_correction_spiral(s: &Signals) -> Option<PatternResult> {
     let edit_warn = s.repeated_edit_peak >= CORRECTION_SPIRAL_EDIT_PEAK_WARN;
     let ratio_warn = s.output_token_ratio > CORRECTION_SPIRAL_OUTPUT_RATIO_WARN;
 
-    if edit_alert && ratio_alert {
-        Some(PatternResult {
-            pattern: Pattern::CorrectionSpiral,
-            severity: Severity::Alert,
-            evidence: vec![
-                Evidence {
-                    metric: "repeated_edit_peak".to_string(),
-                    value: s.repeated_edit_peak as f64,
-                    threshold: CORRECTION_SPIRAL_EDIT_PEAK_ALERT as f64,
-                    direction: Direction::Above,
-                },
-                Evidence {
-                    metric: "output_token_ratio".to_string(),
-                    value: s.output_token_ratio,
-                    threshold: CORRECTION_SPIRAL_OUTPUT_RATIO_ALERT,
-                    direction: Direction::Above,
-                },
+    if edit_warn && ratio_warn && (edit_alert || ratio_alert) {
+        Some(build_result(
+            Pattern::CorrectionSpiral,
+            Severity::Alert,
+            s.clone(),
+            vec![
+                above(
+                    "repeated_edit_peak",
+                    s.repeated_edit_peak as f64,
+                    if edit_alert {
+                        CORRECTION_SPIRAL_EDIT_PEAK_ALERT as f64
+                    } else {
+                        CORRECTION_SPIRAL_EDIT_PEAK_WARN as f64
+                    },
+                ),
+                above(
+                    "output_token_ratio",
+                    s.output_token_ratio,
+                    if ratio_alert {
+                        CORRECTION_SPIRAL_OUTPUT_RATIO_ALERT
+                    } else {
+                        CORRECTION_SPIRAL_OUTPUT_RATIO_WARN
+                    },
+                ),
             ],
-        })
+        ))
     } else if edit_warn && ratio_warn {
-        Some(PatternResult {
-            pattern: Pattern::CorrectionSpiral,
-            severity: Severity::Warn,
-            evidence: vec![
-                Evidence {
-                    metric: "repeated_edit_peak".to_string(),
-                    value: s.repeated_edit_peak as f64,
-                    threshold: CORRECTION_SPIRAL_EDIT_PEAK_WARN as f64,
-                    direction: Direction::Above,
-                },
-                Evidence {
-                    metric: "output_token_ratio".to_string(),
-                    value: s.output_token_ratio,
-                    threshold: CORRECTION_SPIRAL_OUTPUT_RATIO_WARN,
-                    direction: Direction::Above,
-                },
+        Some(build_result(
+            Pattern::CorrectionSpiral,
+            Severity::Warn,
+            s.clone(),
+            vec![
+                above(
+                    "repeated_edit_peak",
+                    s.repeated_edit_peak as f64,
+                    CORRECTION_SPIRAL_EDIT_PEAK_WARN as f64,
+                ),
+                above(
+                    "output_token_ratio",
+                    s.output_token_ratio,
+                    CORRECTION_SPIRAL_OUTPUT_RATIO_WARN,
+                ),
             ],
-        })
+        ))
     } else {
         None
     }
@@ -279,27 +281,27 @@ fn check_correction_spiral(s: &Signals) -> Option<PatternResult> {
 
 fn check_subagent_swarm(s: &Signals) -> Option<PatternResult> {
     if s.subagent_count > SUBAGENT_SWARM_COUNT_ALERT {
-        Some(PatternResult {
-            pattern: Pattern::SubagentSwarm,
-            severity: Severity::Alert,
-            evidence: vec![Evidence {
-                metric: "subagent_count".to_string(),
-                value: s.subagent_count as f64,
-                threshold: SUBAGENT_SWARM_COUNT_ALERT as f64,
-                direction: Direction::Above,
-            }],
-        })
+        Some(build_result(
+            Pattern::SubagentSwarm,
+            Severity::Alert,
+            s.clone(),
+            vec![above(
+                "subagent_count",
+                s.subagent_count as f64,
+                SUBAGENT_SWARM_COUNT_ALERT as f64,
+            )],
+        ))
     } else if s.subagent_count > SUBAGENT_SWARM_COUNT_WARN {
-        Some(PatternResult {
-            pattern: Pattern::SubagentSwarm,
-            severity: Severity::Warn,
-            evidence: vec![Evidence {
-                metric: "subagent_count".to_string(),
-                value: s.subagent_count as f64,
-                threshold: SUBAGENT_SWARM_COUNT_WARN as f64,
-                direction: Direction::Above,
-            }],
-        })
+        Some(build_result(
+            Pattern::SubagentSwarm,
+            Severity::Warn,
+            s.clone(),
+            vec![above(
+                "subagent_count",
+                s.subagent_count as f64,
+                SUBAGENT_SWARM_COUNT_WARN as f64,
+            )],
+        ))
     } else {
         None
     }
@@ -307,27 +309,19 @@ fn check_subagent_swarm(s: &Signals) -> Option<PatternResult> {
 
 fn check_kitchen_sink(s: &Signals) -> Option<PatternResult> {
     if s.topic_shift_count > KITCHEN_SINK_TOPIC_SHIFT_WARN {
-        Some(PatternResult {
-            pattern: Pattern::KitchenSink,
-            severity: Severity::Warn,
-            evidence: vec![Evidence {
-                metric: "topic_shift_count".to_string(),
-                value: s.topic_shift_count as f64,
-                threshold: KITCHEN_SINK_TOPIC_SHIFT_WARN as f64,
-                direction: Direction::Above,
-            }],
-        })
+        Some(build_result(
+            Pattern::KitchenSink,
+            Severity::Warn,
+            s.clone(),
+            kitchen_sink_evidence(s, KITCHEN_SINK_TOPIC_SHIFT_WARN as f64),
+        ))
     } else if s.topic_shift_count > KITCHEN_SINK_TOPIC_SHIFT_INFO {
-        Some(PatternResult {
-            pattern: Pattern::KitchenSink,
-            severity: Severity::Info,
-            evidence: vec![Evidence {
-                metric: "topic_shift_count".to_string(),
-                value: s.topic_shift_count as f64,
-                threshold: KITCHEN_SINK_TOPIC_SHIFT_INFO as f64,
-                direction: Direction::Above,
-            }],
-        })
+        Some(build_result(
+            Pattern::KitchenSink,
+            Severity::Info,
+            s.clone(),
+            kitchen_sink_evidence(s, KITCHEN_SINK_TOPIC_SHIFT_INFO as f64),
+        ))
     } else {
         None
     }
@@ -347,11 +341,30 @@ fn check_marathon(s: &Signals) -> Option<PatternResult> {
         .count();
 
     if conditions_met >= 2 {
-        Some(PatternResult {
-            pattern: Pattern::Marathon,
-            severity: Severity::Info,
-            evidence: vec![],
-        })
+        let mut evidence = Vec::new();
+        if cond_turns {
+            evidence.push(above(
+                "turn_count",
+                s.turn_count as f64,
+                MARATHON_TURN_COUNT as f64,
+            ));
+        }
+        if cond_duration {
+            evidence.push(above(
+                "duration_minutes",
+                s.duration_minutes.unwrap_or_default() as f64,
+                MARATHON_DURATION_MIN as f64,
+            ));
+        }
+        if cond_cache {
+            evidence.push(above("cache_hit_rate", s.cache_hit_rate, MARATHON_CACHE_HIT));
+        }
+        Some(build_result(
+            Pattern::Marathon,
+            Severity::Info,
+            s.clone(),
+            evidence,
+        ))
     } else {
         None
     }
@@ -359,17 +372,74 @@ fn check_marathon(s: &Signals) -> Option<PatternResult> {
 
 fn check_observer(s: &Signals) -> Option<PatternResult> {
     if s.turn_count < OBSERVER_MAX_TURNS && s.repeated_edit_peak <= OBSERVER_MAX_EDIT_PEAK {
-        Some(PatternResult {
-            pattern: Pattern::Observer,
-            severity: Severity::Info,
-            evidence: vec![Evidence {
-                metric: "turn_count".to_string(),
-                value: s.turn_count as f64,
-                threshold: OBSERVER_MAX_TURNS as f64,
-                direction: Direction::Below,
-            }],
-        })
+        Some(build_result(
+            Pattern::Observer,
+            Severity::Info,
+            s.clone(),
+            vec![
+                below("turn_count", s.turn_count as f64, OBSERVER_MAX_TURNS as f64),
+                below(
+                    "repeated_edit_peak",
+                    s.repeated_edit_peak as f64,
+                    OBSERVER_MAX_EDIT_PEAK as f64,
+                ),
+            ],
+        ))
     } else {
         None
+    }
+}
+
+fn build_result(
+    pattern: Pattern,
+    severity: Severity,
+    signals: Signals,
+    evidence: Vec<Evidence>,
+) -> PatternResult {
+    PatternResult {
+        pattern,
+        signals,
+        severity,
+        evidence,
+    }
+}
+
+fn above(metric: &str, value: f64, threshold: f64) -> Evidence {
+    Evidence {
+        metric: metric.to_string(),
+        value,
+        threshold,
+        direction: direction_for(value, threshold),
+    }
+}
+
+fn below(metric: &str, value: f64, threshold: f64) -> Evidence {
+    Evidence {
+        metric: metric.to_string(),
+        value,
+        threshold,
+        direction: direction_for(value, threshold),
+    }
+}
+
+fn kitchen_sink_evidence(s: &Signals, topic_shift_threshold: f64) -> Vec<Evidence> {
+    let mut evidence = vec![above(
+        "topic_shift_count",
+        s.topic_shift_count as f64,
+        topic_shift_threshold,
+    )];
+    if s.repeated_edit_peak >= 2 {
+        evidence.push(above("repeated_edit_peak", s.repeated_edit_peak as f64, 2.0));
+    }
+    evidence
+}
+
+fn direction_for(value: f64, threshold: f64) -> Direction {
+    if (value - threshold).abs() < f64::EPSILON {
+        Direction::Equal
+    } else if value > threshold {
+        Direction::Above
+    } else {
+        Direction::Below
     }
 }

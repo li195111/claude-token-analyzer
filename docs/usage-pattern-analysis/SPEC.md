@@ -1,8 +1,8 @@
 # CTA Usage Pattern Analysis — 功能規格文件（SPEC）
 
-> **版本**：0.1.0-draft
+> **版本**：0.2.0-implemented
 > **建立日期**：2026-04-14
-> **狀態**：Draft（Phase 1 產出）
+> **狀態**：Implemented and verified in current working tree
 > **SSOT 指引**：本文件為 `docs/usage-pattern-analysis/` 下的功能規格。
 > 所有 pattern 定義、threshold 值、output 格式以此文件為準。
 
@@ -49,23 +49,24 @@ CTA 現有 skills（cta-health-check、cta-cost-audit 等）回答的是**結構
 
 ```
 Input:
-  session_id: String   # 首 8 chars 或完整 session UUID，唯一識別一個 JSONL 檔
+  session_id: String   # 完整 session UUID 或唯一前綴，識別一個 JSONL 檔
 
 Output:
   PatternResult (JSON，見 Section 3)
 ```
 
 **session_id 解析規則**：
-- 接受 8 字元前綴（如 `"abc12345"`）
 - 接受完整 UUID（如 `"abc12345-6789-..."`）
-- 使用 session_finder 邏輯（現有 `find_session_file()`）
+- 接受唯一前綴（如 `"abc12345"`）
+- 使用 session_finder 的 exact-or-unique-prefix 邏輯
 - 找不到 → 返回 MCP Error（`SESSION_NOT_FOUND`）
+- 多個 session 同時符合前綴 → 返回 MCP Error（`AMBIGUOUS_SESSION_ID`）
 
 ### 2.2 cta-usage-pattern Skill 輸入
 
 Skill 接受自然語言輸入，LLM 從中萃取：
 - session_id（若使用者指定特定 session）
-- 若無指定 → 呼叫 sync_db + 取最近 N 個 session 分析
+- 若無指定且使用者要看最新資料 → skill 層可先呼叫 `sync_db`，再取最近 N 個 session 分析
 - date_range：可選，格式 `YYYY-MM-DD..YYYY-MM-DD`
 
 ---
@@ -82,12 +83,12 @@ Skill 接受自然語言輸入，LLM 從中萃取：
 
   // 硬訊號數值（分類決策依據）
   "signals": {
-    "cache_hit_rate": f64,          // cache_read_tokens / input_tokens，範圍 [0.0, 1.0]
+    "cache_hit_rate": f64,          // cache_read_tokens / (input_tokens + cache_read_tokens + cache_creation_tokens)，範圍 [0.0, 1.0]
     "output_token_ratio": f64,      // output_tokens / (input_tokens + output_tokens)，範圍 [0.0, 1.0]
-    "subagent_count": u32,          // session 中 Task tool 呼叫次數（subagent 代理）
-    "repeated_edit_peak": u32,      // 單一檔案在此 session 中被 Edit/Write 的最高次數
-    "turn_count": u32,              // session 總對話輪數（user + assistant 各算一輪）
-    "duration_minutes": u32,        // session 持續時間（分鐘）
+    "subagent_count": u32,          // session 中 Agent tool 呼叫次數
+    "repeated_edit_peak": u32,      // 單一檔案在此 session 中被 Edit/Write/MultiEdit 的最高次數
+    "turn_count": u32,              // assistant turn 數（與現有 parser/analyzer 一致）
+    "duration_minutes": u32 | null, // session 持續時間（分鐘）；缺 timestamp 時為 null
     "topic_shift_count": u32        // 估算話題切換次數（heuristic，見 Section 4.7）
   },
 
@@ -100,20 +101,22 @@ Skill 接受自然語言輸入，LLM 從中萃取：
       "metric": String,             // 訊號名稱（如 "cache_hit_rate"）
       "value": f64,                 // 實際測量值
       "threshold": f64,             // 觸發閾值
-      "direction": "below" | "above" | "equal"  // 實際值相對閾值的方向
+      "direction": "below" | "equal" | "above"  // 實際值相對閾值的方向
     }
   ]
 }
 ```
 
-### 3.2 MCP Error Codes
+### 3.2 MCP Error Contract
 
-| Error Code | 意義 | HTTP 類比 |
-|------------|------|-----------|
-| `SESSION_NOT_FOUND` | session_id 無法在 projects_dir 找到對應 JSONL | 404 |
-| `PARSE_FAILED` | JSONL 格式錯誤，無法計算訊號 | 422 |
-| `DB_NOT_SYNCED` | session 存在但 DB 中無記錄，建議先呼叫 sync_db | 409 |
-| `INSUFFICIENT_DATA` | session 太短（< 3 turns），無法有意義分類 | 400 |
+`rmcp` transport error code仍使用標準 numeric code；symbolic business error code 透過 `error.data.code` 傳遞。
+
+| Symbolic Code (`error.data.code`) | transport `error.code` | 意義 |
+|-----------------------------------|------------------------|------|
+| `SESSION_NOT_FOUND` | `INVALID_PARAMS` | session_id 無法在 projects_dir 找到對應 JSONL |
+| `AMBIGUOUS_SESSION_ID` | `INVALID_PARAMS` | session_id 前綴對應到多個 JSONL 檔 |
+| `PARSE_FAILED` | `INVALID_REQUEST` | JSONL 格式錯誤，無法計算訊號 |
+| `INSUFFICIENT_DATA` | `INVALID_PARAMS` | session 太短（< 3 assistant turns），無法有意義分類 |
 
 ---
 
@@ -160,13 +163,14 @@ Cold Session > Correction Spiral > Subagent Swarm > Kitchen Sink > Marathon > Ob
 
 | 訊號 | 閾值 | 方向 |
 |------|------|------|
-| `repeated_edit_peak` | ≥ 4 | above |
+| `repeated_edit_peak` | ≥ 4 | equal / above |
 | `output_token_ratio` | > 0.40 | above |
 
 **組合規則**：兩個條件**同時滿足**才分類為此 pattern。
 
 **Severity**：
-- `repeated_edit_peak` ≥ 8 OR `output_token_ratio` > 0.60 → `alert`
+- 先滿足 warn 分類條件（兩者同時成立）
+- 若此時 `repeated_edit_peak` ≥ 8 OR `output_token_ratio` > 0.60 → `alert`
 - 其他（滿足分類條件）→ `warn`
 
 **常見原因**：
@@ -175,7 +179,7 @@ Cold Session > Correction Spiral > Subagent Swarm > Kitchen Sink > Marathon > Ob
 - Claude 未善用 diff-only 輸出
 
 **邊界條件**：
-- 同一檔案重複讀取（Read tool）不計入 `repeated_edit_peak`，只計 Edit/Write
+- 同一檔案重複讀取（Read tool）不計入 `repeated_edit_peak`，只計 `Edit` / `Write` / `MultiEdit`
 - `output_token_ratio` 計算使用整個 session 的聚合值（非逐 turn 趨勢，簡化實作）
 
 ---
@@ -197,7 +201,7 @@ Cold Session > Correction Spiral > Subagent Swarm > Kitchen Sink > Marathon > Ob
 - 每次工具呼叫都啟新 agent（誤解 subagent 用途）
 
 **邊界條件**：
-- `subagent_count` 的計算方式：計 TaskCreate tool 呼叫次數（作為 subagent 代理訊號）
+- `subagent_count` 的計算方式：計 `Agent` tool 呼叫次數
 - 若 JSONL 缺少 tool use 記錄（老版本）→ `subagent_count` = 0，不觸發此分類
 
 ---
@@ -233,9 +237,9 @@ Cold Session > Correction Spiral > Subagent Swarm > Kitchen Sink > Marathon > Ob
 
 | 訊號 | 閾值 | 方向 |
 |------|------|------|
-| `turn_count` | > 100 | above |
-| `duration_minutes` | > 120 | above |
-| `cache_hit_rate` | > 0.70 | above |
+| `turn_count` | ≥ 100 | equal / above |
+| `duration_minutes` | ≥ 120 | equal / above |
+| `cache_hit_rate` | ≥ 0.70 | equal / above |
 
 **組合規則**：三個條件**至少兩個**滿足才分類為此 pattern。
 
@@ -258,7 +262,7 @@ Cold Session > Correction Spiral > Subagent Swarm > Kitchen Sink > Marathon > Ob
 | 訊號 | 閾值 | 方向 |
 |------|------|------|
 | `turn_count` | < 20 | below |
-| `repeated_edit_peak` | ≤ 1 | below |
+| `repeated_edit_peak` | ≤ 1 | below / equal |
 
 **組合規則**：兩個條件**同時滿足**。
 
@@ -286,11 +290,10 @@ Cold Session > Correction Spiral > Subagent Swarm > Kitchen Sink > Marathon > Ob
 
 **計算方法（v0.1 簡化版）**：
 
-從 JSONL 的 user messages 中提取關鍵詞，當連續兩個 user message 的關鍵詞集合（TF-based, top 5 words）差異 ≥ 40% 時，算一次話題切換。
-
-**v0.1 實作方案**：用工具呼叫模式作為代理訊號（proxy）：
-- 連續 N 個 turns 都是 Read/Grep（搜尋工具）後突然出現 Edit → 算一次話題切換
-- 閾值：每 10 turns 出現一次此模式
+**v0.1 實作方案**：用 assistant turn 的工具呼叫模式作為代理訊號（proxy）：
+- 前 2 個 assistant turns 都只使用搜尋工具（`Read`, `Grep`, `Glob`）
+- 當前 assistant turn 首次出現編輯工具（`Edit`, `Write`, `MultiEdit`）
+- 每次符合上述轉換，算一次話題切換
 
 **校準計劃**：v0.2 版本加入語義相似度（用 embedding 或關鍵詞 cosine distance）。
 
@@ -306,8 +309,8 @@ pub const COLD_SESSION_CACHE_HIT_WARN: f64 = 0.30;
 pub const COLD_SESSION_CACHE_HIT_ALERT: f64 = 0.15;
 
 // Correction Spiral
-pub const CORRECTION_SPIRAL_EDIT_PEAK: u32 = 4;
-pub const CORRECTION_SPIRAL_OUTPUT_RATIO: f64 = 0.40;
+pub const CORRECTION_SPIRAL_EDIT_PEAK_WARN: u32 = 4;
+pub const CORRECTION_SPIRAL_OUTPUT_RATIO_WARN: f64 = 0.40;
 pub const CORRECTION_SPIRAL_EDIT_PEAK_ALERT: u32 = 8;
 pub const CORRECTION_SPIRAL_OUTPUT_RATIO_ALERT: f64 = 0.60;
 
@@ -349,13 +352,12 @@ pub const MIN_TURNS_FOR_CLASSIFICATION: u32 = 3;
 | 情況 | 處理方式 |
 |------|---------|
 | 空 session（0 turns） | 返回 `INSUFFICIENT_DATA` error |
-| 單 turn session（1-2 turns） | 返回 `INSUFFICIENT_DATA` error |
-| 純 subagent session（主 agent 無互動） | 可能分類，但 signals 加 `"is_subagent_only": true` |
+| 單 turn session（1-2 assistant turns） | 返回 `INSUFFICIENT_DATA` error |
+| 純 subagent session（主 agent 無互動） | 仍可分類，不額外注入隱藏欄位 |
 | 跨日 session（midnight crossing） | 以 JSONL 實際 timestamp 差計算 duration，不受日期影響 |
 | 缺少 timestamp（老版 JSONL） | `duration_minutes` = null，跳過依賴此訊號的分類條件 |
 | 缺少 tool use records | `subagent_count` = 0，`repeated_edit_peak` = 0 |
-| session 未在 DB 中（未 sync）| 返回 `DB_NOT_SYNCED` error，提示先執行 sync_db |
-| session_id 前綴衝突（多個 session 前綴相同）| 返回 ambiguous 錯誤，要求提供更長的 ID |
+| session_id 前綴衝突（多個 session 前綴相同）| 返回 `AMBIGUOUS_SESSION_ID`，要求提供更長的 ID |
 
 ---
 
@@ -365,19 +367,18 @@ pub const MIN_TURNS_FOR_CLASSIFICATION: u32 = 3;
 
 | 訊號 | 來源 | Rust struct/方法 |
 |------|------|-----------------|
-| `cache_hit_rate` | storage.rs → SessionAnalysis | `analysis.cache_hit_rate` |
-| `output_token_ratio` | storage.rs → SessionAnalysis | `analysis.output_tokens / (analysis.input_tokens + analysis.output_tokens)` |
-| `subagent_count` | parser.rs → 工具使用記錄 | TaskCreate tool use count（需新增計算）|
-| `repeated_edit_peak` | parser.rs → 工具使用記錄 | 按 file path 分組的 Edit/Write max count（需新增計算）|
-| `turn_count` | storage.rs → SessionAnalysis | `analysis.turn_count`（需確認欄位名稱）|
-| `duration_minutes` | parser.rs → JSONL timestamps | first_timestamp to last_timestamp（需新增計算）|
-| `topic_shift_count` | parser.rs → tool use patterns | v0.1: tool pattern heuristic |
+| `cache_hit_rate` | pattern_signals.rs → ParseResult totals | `cache_read / (input + cache_read + cache_creation)` |
+| `output_token_ratio` | pattern_signals.rs → ParseResult totals | `output_tokens / (input_tokens + output_tokens)` |
+| `subagent_count` | pattern_signals.rs → parser tool records | `Agent` tool use count |
+| `repeated_edit_peak` | pattern_signals.rs → parser tool records | 按 file path 分組的 `Edit`/`Write`/`MultiEdit` max count |
+| `turn_count` | pattern_signals.rs → ParseResult totals | `parse_result.total_turns` |
+| `duration_minutes` | pattern_signals.rs → parser timestamps | first_timestamp to last_timestamp |
+| `topic_shift_count` | pattern_signals.rs → tool use patterns | v0.1: search-only → edit heuristic |
 
-**需要新增到 SessionAnalysis 的欄位**（Phase 4 實作時確認）：
-- `subagent_count: u32`
-- `repeated_edit_peak: u32`
-- `duration_minutes: Option<u32>`
-- `topic_shift_count: u32`
+**實作邊界**
+- `SessionAnalysis` 保留既有聚合責任。
+- `pattern_signals.rs` 是 `ParseResult -> Signals` 的薄 seam。
+- `classify_session_pattern` MCP handler 消費 `Signals`，不把 usage-pattern 專用欄位反向塞進 `SessionAnalysis`。
 
 ---
 
@@ -386,9 +387,9 @@ pub const MIN_TURNS_FOR_CLASSIFICATION: u32 = 3;
 ### 8.1 與現有 MCP Tools 的關係
 
 ```
-sync_db              → 確保 DB 有最新資料（必須先呼叫）
-analyze_session      → 取 SessionAnalysis（cache_hit_rate, output_tokens 等）
-classify_session_pattern → 新增，依賴上述資料 + parser 新增欄位
+analyze_session          → 既有參考路徑（ParseResult + SessionAnalysis）
+classify_session_pattern → 直接讀 JSONL 並結合 parser/signal builder/classifier
+sync_db                  → skill 層 freshness step，不是此 MCP tool 的硬依賴
 ```
 
 ### 8.2 Skill 執行流程
@@ -398,7 +399,7 @@ classify_session_pattern → 新增，依賴上述資料 + parser 新增欄位
     ↓
 cta router 路由到 cta-usage-pattern
     ↓
-sync_db（確保最新）
+若使用者要求最新資料，先 sync_db
     ↓
 classify_session_pattern { session_id: "abc12345" }
     ↓ PatternResult JSON
@@ -417,14 +418,14 @@ LLM 合成建議報告
 
 | # | 驗收項目 | 驗證方式 |
 |---|---------|---------|
-| AC-1 | `classify_session_pattern` 正確分類 marathon session | Golden set E2E test |
-| AC-2 | `classify_session_pattern` 正確分類 correction_spiral | Golden set E2E test |
-| AC-3 | `classify_session_pattern` 正確分類 cold_session | Golden set E2E test |
+| AC-1 | `classify_session_pattern` 正確分類 marathon session | MCP handler unit test with synthetic JSONL fixture |
+| AC-2 | `classify_session_pattern` 正確分類 correction_spiral | MCP handler unit test with synthetic JSONL fixture |
+| AC-3 | `classify_session_pattern` 正確分類 cold_session | MCP handler unit test with synthetic JSONL fixture |
 | AC-4 | 空 session 返回 INSUFFICIENT_DATA error | Unit test |
 | AC-5 | session_id 不存在返回 SESSION_NOT_FOUND error | Unit test |
 | AC-6 | 多個 pattern 條件滿足時，優先順序正確（Cold > Spiral > ...）| Unit test |
 | AC-7 | evidence list 包含所有觸發條件的具體數值 | Unit test |
-| AC-8 | cta router 能路由「使用模式」關鍵詞到 cta-usage-pattern | Skill description test |
+| AC-8 | `cta-usage-pattern` skill 與 advice mapping 文件已對齊 MCP-8 | Mapping/doc test |
 
 ### 9.2 品質驗收
 
@@ -433,7 +434,7 @@ LLM 合成建議報告
 | QA-1 | `cargo test --all-targets` 全綠 | CI |
 | QA-2 | `cargo clippy -- -D warnings` 無 warning | CI |
 | QA-3 | 無新增 hardcode（pattern 閾值都在 const 區域）| Code review |
-| QA-4 | Pattern classifier 單元測試覆蓋所有分類（含邊界）| tarpaulin ≥ 95% |
+| QA-4 | Pattern classifier / signal / MCP-8 tests 覆蓋所有分類與主要邊界 | `cargo test` |
 | QA-5 | 重構後 API surface 不變（外部 crate 用法不受影響）| Compilation test |
 
 ---
@@ -442,7 +443,5 @@ LLM 合成建議報告
 
 | ID | 問題 | 狀態 | 負責人 |
 |----|------|------|--------|
-| OQ-1 | `turn_count` 的確切欄位名是否在 SessionAnalysis 中？ | 待確認（Phase 4） | 實作者 |
-| OQ-2 | TaskCreate tool use 是否能從 JSONL parser 直接計數？ | 待確認（Phase 2） | 實作者 |
-| OQ-3 | 初始閾值（如 `repeated_edit_peak ≥ 4`）是否需要使用者調整？ | 暫不支援，v0.2 加 config | ADR-0002 |
-| OQ-4 | `topic_shift_count` v0.1 heuristic 的 precision/recall 如何測量？ | 待 golden set 建立後測量 | Phase 2 |
+| OQ-1 | 初始閾值（如 `repeated_edit_peak ≥ 4`）是否需要使用者調整？ | 暫不支援，v0.2 加 config | ADR-0002 |
+| OQ-2 | `topic_shift_count` v0.1 heuristic 的 precision/recall 如何測量？ | 待 golden set 建立後測量 | 後續工作 |

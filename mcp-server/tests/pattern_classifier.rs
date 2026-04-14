@@ -1,16 +1,14 @@
-//! Pattern classifier unit tests — TDD Phase 2 (RED)
+//! Pattern classifier unit tests.
 //!
-//! 這些測試參照尚未實作的 `pattern_classifier` 模組。
-//! 目前應全部編譯失敗（CompileError），待 Phase 4 實作後轉為綠燈。
-//!
-//! 每個測試的驗收標準：
-//! 1. 分類結果正確（pattern enum 值）
-//! 2. severity 正確
-//! 3. evidence list 包含觸發訊號
+//! These tests lock the public v1 classifier contract:
+//! 1. pattern and severity are correct
+//! 2. evidence includes the metrics that triggered the result
+//! 3. serialized JSON matches the MCP-facing wire contract
 
 use claude_token_analyzer::pattern_classifier::{
-    classify, Direction, Pattern, PatternResult, Severity, Signals,
+    classify, classify_with_validation, Direction, Pattern, PatternResult, Severity, Signals,
 };
+use serde_json::json;
 
 // ============================================================
 // Helper: 建立預設 Signals（所有值為「正常」範圍）
@@ -131,7 +129,7 @@ fn test_cold_session_boundary_exactly_at_warn_threshold() {
 #[test]
 fn test_correction_spiral_warn() {
     let signals = Signals {
-        repeated_edit_peak: 5,
+        repeated_edit_peak: 4,
         output_token_ratio: 0.45,
         ..normal_signals()
     };
@@ -141,6 +139,10 @@ fn test_correction_spiral_warn() {
     assert_eq!(result.severity, Severity::Warn);
     assert!(has_evidence(&result, "repeated_edit_peak"));
     assert!(has_evidence(&result, "output_token_ratio"));
+    assert_eq!(
+        evidence_direction(&result, "repeated_edit_peak"),
+        Some(&Direction::Equal)
+    );
 }
 
 #[test]
@@ -148,6 +150,32 @@ fn test_correction_spiral_alert() {
     let signals = Signals {
         repeated_edit_peak: 9,
         output_token_ratio: 0.65,
+        ..normal_signals()
+    };
+    let result = classify(signals);
+
+    assert_eq!(result.pattern, Pattern::CorrectionSpiral);
+    assert_eq!(result.severity, Severity::Alert);
+}
+
+#[test]
+fn test_correction_spiral_alert_when_only_edit_peak_crosses_alert_threshold() {
+    let signals = Signals {
+        repeated_edit_peak: 8,
+        output_token_ratio: 0.45,
+        ..normal_signals()
+    };
+    let result = classify(signals);
+
+    assert_eq!(result.pattern, Pattern::CorrectionSpiral);
+    assert_eq!(result.severity, Severity::Alert);
+}
+
+#[test]
+fn test_correction_spiral_alert_when_only_output_ratio_crosses_alert_threshold() {
+    let signals = Signals {
+        repeated_edit_peak: 5,
+        output_token_ratio: 0.61,
         ..normal_signals()
     };
     let result = classify(signals);
@@ -265,6 +293,24 @@ fn test_kitchen_sink_warn_at_high_shifts() {
     assert_eq!(result.severity, Severity::Warn);
 }
 
+#[test]
+fn test_kitchen_sink_includes_repeated_edit_peak_as_secondary_evidence() {
+    let signals = Signals {
+        topic_shift_count: 5,
+        repeated_edit_peak: 2,
+        ..normal_signals()
+    };
+    let result = classify(signals);
+
+    assert_eq!(result.pattern, Pattern::KitchenSink);
+    assert!(has_evidence(&result, "topic_shift_count"));
+    assert!(has_evidence(&result, "repeated_edit_peak"));
+    assert_eq!(
+        evidence_direction(&result, "repeated_edit_peak"),
+        Some(&Direction::Equal)
+    );
+}
+
 // ============================================================
 // Marathon
 // ============================================================
@@ -281,6 +327,9 @@ fn test_marathon_session() {
 
     assert_eq!(result.pattern, Pattern::Marathon);
     assert_eq!(result.severity, Severity::Info);
+    assert!(has_evidence(&result, "turn_count"));
+    assert!(has_evidence(&result, "duration_minutes"));
+    assert!(has_evidence(&result, "cache_hit_rate"));
 }
 
 #[test]
@@ -297,6 +346,32 @@ fn test_marathon_requires_two_of_three_conditions() {
         result.pattern,
         Pattern::Marathon,
         "Marathon should trigger with 2/3 conditions met"
+    );
+    assert!(has_evidence(&result, "turn_count"));
+    assert!(has_evidence(&result, "duration_minutes"));
+    assert!(!has_evidence(&result, "cache_hit_rate"));
+}
+
+#[test]
+fn test_marathon_thresholds_are_inclusive() {
+    let signals = Signals {
+        turn_count: 100,
+        duration_minutes: Some(120),
+        cache_hit_rate: 0.50,
+        ..normal_signals()
+    };
+    let result = classify(signals);
+
+    assert_eq!(result.pattern, Pattern::Marathon);
+    assert!(has_evidence(&result, "turn_count"));
+    assert!(has_evidence(&result, "duration_minutes"));
+    assert_eq!(
+        evidence_direction(&result, "turn_count"),
+        Some(&Direction::Equal)
+    );
+    assert_eq!(
+        evidence_direction(&result, "duration_minutes"),
+        Some(&Direction::Equal)
     );
 }
 
@@ -316,9 +391,30 @@ fn test_observer_session() {
     assert_eq!(result.pattern, Pattern::Observer);
     assert_eq!(result.severity, Severity::Info);
     assert!(has_evidence(&result, "turn_count"));
+    assert!(has_evidence(&result, "repeated_edit_peak"));
     assert_eq!(
         evidence_direction(&result, "turn_count"),
         Some(&Direction::Below)
+    );
+    assert_eq!(
+        evidence_direction(&result, "repeated_edit_peak"),
+        Some(&Direction::Below)
+    );
+}
+
+#[test]
+fn test_observer_reports_equal_direction_at_edit_peak_boundary() {
+    let signals = Signals {
+        turn_count: 12,
+        repeated_edit_peak: 1,
+        ..normal_signals()
+    };
+    let result = classify(signals);
+
+    assert_eq!(result.pattern, Pattern::Observer);
+    assert_eq!(
+        evidence_direction(&result, "repeated_edit_peak"),
+        Some(&Direction::Equal)
     );
 }
 
@@ -416,11 +512,7 @@ fn test_evidence_contains_threshold_and_direction() {
 // ============================================================
 
 #[test]
-fn test_insufficient_turns_returns_none() {
-    // Phase 4 implementation should handle this as an error or Option
-    // For now we test that classify_with_validation returns Err for < 3 turns
-    use claude_token_analyzer::pattern_classifier::classify_with_validation;
-
+fn test_insufficient_turns_returns_error() {
     let signals = Signals {
         turn_count: 2,
         ..normal_signals()
@@ -430,4 +522,57 @@ fn test_insufficient_turns_returns_none() {
         result.is_err(),
         "Should return Err for session with < 3 turns"
     );
+    let err = result.unwrap_err().to_string();
+    assert!(
+        err.contains("assistant turn(s), minimum is 3"),
+        "Error should pin the assistant-turn contract, got: {err}"
+    );
+}
+
+#[test]
+fn test_pattern_result_serializes_with_mcp_contract_shape() {
+    let signals = Signals {
+        cache_hit_rate: 0.08,
+        ..normal_signals()
+    };
+    let result = classify(signals);
+    let value = serde_json::to_value(&result).expect("pattern result should serialize");
+
+    assert_eq!(
+        value,
+        json!({
+            "pattern": "cold_session",
+            "signals": {
+                "cache_hit_rate": 0.08,
+                "output_token_ratio": 0.25,
+                "subagent_count": 2,
+                "repeated_edit_peak": 1,
+                "turn_count": 30,
+                "duration_minutes": 45,
+                "topic_shift_count": 1
+            },
+            "severity": "alert",
+            "evidence": [
+                {
+                    "metric": "cache_hit_rate",
+                    "value": 0.08,
+                    "threshold": 0.15,
+                    "direction": "below"
+                }
+            ]
+        })
+    );
+}
+
+#[test]
+fn test_pattern_result_serializes_null_duration_minutes() {
+    let signals = Signals {
+        cache_hit_rate: 0.08,
+        duration_minutes: None,
+        ..normal_signals()
+    };
+    let result = classify(signals);
+    let value = serde_json::to_value(&result).expect("pattern result should serialize");
+
+    assert_eq!(value["signals"]["duration_minutes"], serde_json::Value::Null);
 }
