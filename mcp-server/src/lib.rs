@@ -7,6 +7,7 @@ pub mod config;
 pub mod detector;
 pub mod format;
 pub mod parser;
+pub mod pattern_classifier;
 pub mod pricing;
 pub mod session_finder;
 pub mod storage;
