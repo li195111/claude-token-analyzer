@@ -248,7 +248,7 @@ cache_read_per_mtok = 1.0
     fn test_from_env_invalid_path_errors() {
         let result = with_env_vars(
             &[("CTA_PRICING_PATH", Some("/nonexistent/pricing.toml"))],
-            || PricingTable::from_env_or_embedded(),
+            PricingTable::from_env_or_embedded,
         );
 
         assert!(result.is_err());
