@@ -161,6 +161,26 @@ Secondary drift at handoff:
 
 ## Pending Final Gate
 
+## Codex Testing Enablement Baseline
+
+### Discovery
+- Codex already supports local MCP servers through `~/.codex/config.toml` under `[mcp_servers.*]`.
+- This repo's `.mcp.json` is Claude-plugin oriented and depends on `CLAUDE_PLUGIN_ROOT` plus `scripts/run.sh`.
+- MCP itself is not the blocker for Codex testing. The main blocker is skill portability:
+  - `skills/cta-health-check/SKILL.md`
+  - `skills/cta-cost-audit/SKILL.md`
+  - `skills/cta-anomaly-hunt/SKILL.md`
+  - `skills/cta-project-review/SKILL.md`
+  - `skills/cta-trend-watch/SKILL.md`
+  all still referenced `${CLAUDE_PLUGIN_ROOT}/skills/cta/references/tool-reference.md`.
+- `skills/cta-usage-pattern/SKILL.md` was already Codex-friendly because it uses a local relative reference file.
+
+### Implementation direction
+- Remove Claude-plugin-only path assumptions from CTA skill docs by switching shared reference pointers to relative paths.
+- Add a Codex-specific runner that defaults DB/archive into repo-local `.codex-test/` while keeping projects resolution overrideable.
+- Add a helper script to symlink repo CTA skills into `~/.codex/skills` for native Codex skill-trigger testing.
+- Add a Codex testing guide with exact config snippet, mount steps, and verification prompts.
+
 ## Final Verification Evidence
 
 ### `cargo test --all-targets --manifest-path mcp-server/Cargo.toml`
