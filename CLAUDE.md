@@ -8,7 +8,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 # Build release binary (outputs mcp-server/target/release/cta-mcp-server)
 bash scripts/build.sh
 
-# Run all tests
+# Run all tests (106 tests: unit + integration)
 cargo test --all-targets --manifest-path mcp-server/Cargo.toml
 
 # Run a single test by name
@@ -39,7 +39,7 @@ $CTA_PROJECTS_DIR/**/*.jsonl or $CLAUDE_CONFIG_DIR/projects/**/*.jsonl or ~/.cla
 
 ### Two Binaries
 
-- **`cta-mcp-server`** (`src/bin/mcp.rs`) — MCP server; implements `ServerHandler` trait from `rmcp`, exposes 8 tools via `#[tool]` macro and `ToolRouter`
+- **`cta-mcp-server`** (`src/bin/mcp.rs`) — MCP server; implements `ServerHandler` trait from `rmcp`, exposes 7 tools via `#[tool]` macro and `ToolRouter`
 - **`cta`** (`src/bin/cli.rs`) — CLI for manual testing/debugging; mirrors MCP tool functionality
 
 ### Key Design Decisions
@@ -59,7 +59,7 @@ $CTA_PROJECTS_DIR/**/*.jsonl or $CLAUDE_CONFIG_DIR/projects/**/*.jsonl or ~/.cla
 | `detector.rs` | 6-type statistical anomaly detection with severity scoring |
 | `pricing.rs` | Model pricing lookup from TOML, cost calculation per token type |
 | `archiver.rs` | zstd compression/decompression for session archival |
-| `config.rs` | Centralized path resolution across three deployment modes |
+| `config.rs` | Centralized path resolution across three deployment modes (with `$CLAUDE_CONFIG_DIR` fallback for projects only) |
 | `session_finder.rs` | Recursive JSONL file discovery under projects directory |
 
 ### Plugin Structure
@@ -70,7 +70,7 @@ $CTA_PROJECTS_DIR/**/*.jsonl or $CLAUDE_CONFIG_DIR/projects/**/*.jsonl or ~/.cla
 hooks/hooks.json            — SessionStart hook (auto-downloads binary on first run)
 scripts/run.sh              — MCP server wrapper (ensures binary exists)
 scripts/install.sh          — Binary installer (multi-platform, downloads from GitHub Releases)
-skills/cta*/SKILL.md        — 7 workflow skills (router + 6 sub-skills)
+skills/cta*/SKILL.md        — 6 workflow skills (router + 5 sub-skills)
 ```
 
 ## Commit Convention

@@ -3,7 +3,7 @@
 > Your Claude Code sessions might be burning tokens you can't see.
 > **Diagnoses** where your tokens go, why they're wasted, and what to fix first.
 
-**Fully local** — parses your Claude Code JSONL session logs into SQLite. Nothing leaves your machine. No cloud. No telemetry.
+**Fully local** — parses your `~/.claude` JSONL files into SQLite. Nothing leaves your machine. No cloud. No telemetry.
 
 [![MIT License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 [![GitHub Release](https://img.shields.io/github/v/release/li195111/claude-token-analyzer)](https://github.com/li195111/claude-token-analyzer/releases)
@@ -39,8 +39,7 @@ Then just ask in any Claude Code session:
 ## How It Works
 
 ```
-$CLAUDE_CONFIG_DIR/projects/**/*.jsonl
-or ~/.claude/projects/**/*.jsonl    Your session logs (never modified)
+~/.claude/projects/**/*.jsonl       Your session logs (never modified)
     → parser.rs                     Extract + deduplicate responses
     → analyzer.rs                   Cost calculation, 10-dimension metrics
     → storage.rs                    Upsert into local SQLite
@@ -48,7 +47,7 @@ or ~/.claude/projects/**/*.jsonl    Your session logs (never modified)
     → MCP tools / Skills            You ask, it answers
 ```
 
-All processing happens locally. The SQLite database path follows the configured resolution rules (`CTA_DB_PATH` > plugin root > standalone `~/.claude`). No network calls, no external dependencies at runtime.
+All processing happens locally. The SQLite database lives under the plugin data directory in plugin mode and falls back to `~/.claude/` in standalone mode. No network calls, no external dependencies at runtime.
 
 ## Skills
 
@@ -60,7 +59,6 @@ All processing happens locally. The SQLite database path follows the configured 
 | `cta-anomaly-hunt` | "anomalies", "problems", "有異常嗎" | Statistical anomaly scan with drill-down |
 | `cta-project-review` | "analyze project", "專案健檢" | Four-dimension project analysis |
 | `cta-trend-watch` | "trends", "burn rate", "趨勢" | Usage trend analysis with forecasting |
-| `cta-usage-pattern` | "使用模式", "pattern 分析", "harness 優化" | Session pattern classification with workflow advice |
 
 ## MCP Tools
 
@@ -73,7 +71,6 @@ All processing happens locally. The SQLite database path follows the configured 
 | `cost_report` | Monthly cost report (daily granularity available) |
 | `anomaly_scan` | 6-type anomaly detection with severity scoring |
 | `trend_report` | Time-series trends (daily/weekly/monthly) |
-| `classify_session_pattern` | Session pattern classification with signals and evidence |
 
 ## Configuration
 
@@ -99,7 +96,7 @@ cd claude-token-analyzer
 bash scripts/build.sh
 # Binary: mcp-server/target/release/cta-mcp-server
 
-# Run tests
+# Run tests (106 tests)
 cargo test --all-targets --manifest-path mcp-server/Cargo.toml
 
 # Lint
@@ -133,7 +130,7 @@ MIT
 > 你的 Claude Code 會話可能正在浪費你看不見的 token。
 > **診斷** token 流向、浪費原因，並告訴你該優先修正什麼。
 
-**全本地運行** — 解析 Claude Code 的 JSONL session logs 到 SQLite。資料不離開你的機器。無雲端、無遙測。
+**全本地運行** — 解析 `~/.claude` JSONL 檔案到 SQLite。資料不離開你的機器。無雲端、無遙測。
 
 ### 功能特色
 

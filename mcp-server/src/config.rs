@@ -1,10 +1,13 @@
 //! Centralized path resolution for CTA.
 //!
 //! Resolution priority:
-//! 1. Environment variable override ($CTA_DB_PATH, $CTA_PROJECTS_DIR, $CTA_ARCHIVE_DIR)
-//! 2. Plugin mode ($CLAUDE_PLUGIN_ROOT/data/...) for DB/archive only
-//! 3. Claude config dir ($CLAUDE_CONFIG_DIR/...)
-//! 4. Standalone mode ($HOME/.claude/...)
+//! - DB path: `$CTA_DB_PATH` > `$CLAUDE_PLUGIN_ROOT/data/token-analyzer.db`
+//!   > `$HOME/.claude/token-analyzer.db`
+//! - Projects dir: `$CTA_PROJECTS_DIR` > `$CLAUDE_CONFIG_DIR/projects`
+//!   > `$HOME/.claude/projects`
+//! - Archive dir: `$CTA_ARCHIVE_DIR`
+//!   > `$CLAUDE_PLUGIN_ROOT/data/token-analyzer-archive`
+//!   > `$HOME/.claude/token-analyzer-archive`
 
 use std::env;
 use std::path::PathBuf;
@@ -67,44 +70,7 @@ fn home_dir() -> Result<PathBuf> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::sync::Mutex;
-
-    // Serialize env-var tests to avoid races
-    static ENV_LOCK: Mutex<()> = Mutex::new(());
-
-    /// Helper: run closure with env vars set, then restore originals
-    fn with_env_vars<F: FnOnce() -> R, R>(vars: &[(&str, Option<&str>)], f: F) -> R {
-        // Recover from poisoned mutex so that a panicking test (e.g., a TDD red-light test
-        // that intentionally fails an assertion) does not cascade and corrupt ENV state
-        // for subsequent tests. Using unwrap_or_else(|e| e.into_inner()) is the standard
-        // Rust pattern for poison recovery in test helpers.
-        let _guard = ENV_LOCK.lock().unwrap_or_else(|e| e.into_inner());
-        let originals: Vec<(&str, Option<String>)> =
-            vars.iter().map(|(k, _)| (*k, env::var(k).ok())).collect();
-
-        for (k, v) in vars {
-            // SAFETY: tests are serialized via ENV_LOCK mutex
-            unsafe {
-                match v {
-                    Some(val) => env::set_var(k, val),
-                    None => env::remove_var(k),
-                }
-            }
-        }
-
-        let result = f();
-
-        for (k, orig) in &originals {
-            // SAFETY: tests are serialized via ENV_LOCK mutex
-            unsafe {
-                match orig {
-                    Some(val) => env::set_var(k, val),
-                    None => env::remove_var(k),
-                }
-            }
-        }
-        result
-    }
+    use crate::test_utils::with_env_vars;
 
     #[test]
     fn test_resolve_db_path_from_env() {

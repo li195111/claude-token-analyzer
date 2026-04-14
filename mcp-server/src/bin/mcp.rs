@@ -409,7 +409,7 @@ impl TokenAnalyzerServer {
 
     #[tool(
         name = "sync_db",
-        description = "Synchronize the database by scanning all JSONL session files under the configured projects directory (CTA_PROJECTS_DIR, or CLAUDE_CONFIG_DIR/projects, or ~/.claude/projects) and upserting new or modified sessions. Returns a sync report with counts of files scanned, synced, and failed."
+        description = "Synchronize the database by scanning all JSONL session files under the configured projects directory (default: $CLAUDE_CONFIG_DIR/projects/ or ~/.claude/projects/, overridable via $CTA_PROJECTS_DIR) and upserting new or modified sessions. Returns a sync report with counts of files scanned, synced, and failed."
     )]
     async fn sync_db_tool(
         &self,
