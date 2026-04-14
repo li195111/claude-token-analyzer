@@ -47,7 +47,7 @@ Then just ask in any Claude Code session:
     → MCP tools / Skills            You ask, it answers
 ```
 
-All processing happens locally. The SQLite database lives in the plugin directory. No network calls, no external dependencies at runtime.
+All processing happens locally. The SQLite database lives under the plugin data directory in plugin mode and falls back to `~/.claude/` in standalone mode. No network calls, no external dependencies at runtime.
 
 ## Skills
 
@@ -78,12 +78,15 @@ Environment variables (all optional):
 
 | Variable | Purpose | Default |
 |----------|---------|---------|
-| `CTA_DB_PATH` | SQLite database location | `${CLAUDE_PLUGIN_ROOT}/data/token-analyzer.db` |
-| `CTA_PROJECTS_DIR` | Session logs directory | `~/.claude/projects` |
-| `CTA_ARCHIVE_DIR` | Archive directory | `~/.claude/token-analyzer-archive` |
+| `CTA_DB_PATH` | SQLite database location | `${CLAUDE_PLUGIN_ROOT}/data/token-analyzer.db` or `~/.claude/token-analyzer.db` |
+| `CTA_PROJECTS_DIR` | Session logs directory | `${CLAUDE_CONFIG_DIR}/projects` or `~/.claude/projects` |
+| `CTA_ARCHIVE_DIR` | Archive directory | `${CLAUDE_PLUGIN_ROOT}/data/token-analyzer-archive` or `~/.claude/token-analyzer-archive` |
 | `CTA_PRICING_PATH` | Custom pricing TOML | Embedded in binary |
+| `CLAUDE_CONFIG_DIR` | Claude config root for session logs | unset |
 
-Path resolution priority: Environment variable > Plugin mode (`$CLAUDE_PLUGIN_ROOT`) > Standalone mode (`$HOME/.claude/`)
+Path resolution priority:
+- DB/archive: environment variable > plugin mode (`$CLAUDE_PLUGIN_ROOT`) > standalone mode (`$HOME/.claude/`)
+- Projects: environment variable > Claude config dir (`$CLAUDE_CONFIG_DIR/projects`) > standalone mode (`$HOME/.claude/projects`)
 
 ## Building from Source
 
@@ -93,7 +96,7 @@ cd claude-token-analyzer
 bash scripts/build.sh
 # Binary: mcp-server/target/release/cta-mcp-server
 
-# Run tests (98 tests)
+# Run tests (106 tests)
 cargo test --all-targets --manifest-path mcp-server/Cargo.toml
 
 # Lint
