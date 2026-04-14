@@ -17,6 +17,7 @@ pub struct TokenUsage {
 pub struct ToolUseInfo {
     pub name: String,
     pub tool_use_id: String,
+    pub file_path: Option<String>,
 }
 
 /// A single assistant turn (one model response)

@@ -1,6 +1,6 @@
 # CTA Tool Reference
 
-Quick reference for the 7 token-analyzer MCP tools. For full architecture details, see the source README at `${CLAUDE_PLUGIN_ROOT}/README.md`.
+Quick reference for the 8 token-analyzer MCP tools. For full architecture details, see the source README at `${CLAUDE_PLUGIN_ROOT}/README.md`.
 
 ## sync_db
 
@@ -8,8 +8,18 @@ Quick reference for the 7 token-analyzer MCP tools. For full architecture detail
 |-------|-------|
 | Parameters | None |
 | Returns | `files_synced`, `sessions_upserted`, `files_failed` |
-| When | First step of every workflow |
-| Note | Incremental (mtime-based), idempotent |
+| When | Latest/freshness-sensitive workflows，或需要先把 JSONL 匯入 SQLite 的分析流程 |
+| Note | Incremental (mtime-based), idempotent. `classify_session_pattern` 直接讀 JSONL，歷史 session lookup 不強制依賴 `sync_db` |
+
+## classify_session_pattern
+
+| Field | Value |
+|-------|-------|
+| Parameters | `session_id` (required, full UUID or unique prefix) |
+| Returns | `pattern`, `signals`, `severity`, `evidence` |
+| When | Session usage-pattern diagnosis and workflow advice |
+| Errors | Symbolic code in `error.data.code`: `SESSION_NOT_FOUND`, `AMBIGUOUS_SESSION_ID`, `PARSE_FAILED`, `INSUFFICIENT_DATA` |
+| Note | Reads the matching JSONL directly, so it works even before `sync_db` catches up |
 
 ## analyze_session
 

@@ -44,3 +44,12 @@
 - Issues: 5 (0)
 - B2 PR #31 (jmanhype/awesome-claude-code): UNKNOWN — external repo not accessible via MCP tools
 - B5 PR #95 (ComposioHQ/awesome-claude-plugins): UNKNOWN — external repo not accessible via MCP tools
+
+---
+
+## 2026-03-31
+- Stars: UNKNOWN — repo metadata not accessible via MCP tools (last known: 3)
+- Forks: UNKNOWN — repo metadata not accessible via MCP tools (last known: 1)
+- Issues: 6 (+1 from baseline) — new issue #6 by @halindrome: "Support CLAUDE_CONFIG_DIR for path resolution"
+- B2 PR #31 (jmanhype/awesome-claude-code): UNKNOWN — external repo not accessible via MCP tools
+- B5 PR #95 (ComposioHQ/awesome-claude-plugins): UNKNOWN — external repo not accessible via MCP tools
