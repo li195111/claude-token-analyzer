@@ -319,6 +319,7 @@ mod tests {
         PricingTable::embedded()
     }
 
+    #[allow(clippy::too_many_arguments)]
     fn make_db_parse_result(
         session_id: &str,
         project_path: &str,

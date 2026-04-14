@@ -51,7 +51,7 @@ pub fn truncate_session_id(id: &str, max_len: usize) -> String {
             .chars()
             .take_while(|c| {
                 width += unicode_width::UnicodeWidthChar::width(*c).unwrap_or(0);
-                width <= max_len - 1
+                width < max_len
             })
             .collect();
         format!("{}…", truncated)
@@ -87,7 +87,7 @@ pub fn pad(s: &str, width: usize) -> String {
             .chars()
             .take_while(|c| {
                 w += unicode_width::UnicodeWidthChar::width(*c).unwrap_or(0);
-                w <= width - 1
+                w < width
             })
             .collect();
         format!("{}…", truncated)

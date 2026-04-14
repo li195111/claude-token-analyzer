@@ -4,8 +4,8 @@ description: |
   This skill should be used when the user asks to "analyze token usage", "check costs",
   "how much did I spend", "token analysis", "session analysis", "cta", or mentions
   Claude Code usage efficiency, token spending, or cost optimization.
-  Routes to 5 workflow sub-skills: cta-health-check, cta-cost-audit, cta-anomaly-hunt,
-  cta-project-review, cta-trend-watch. Also handles ambiguous intent with a quick overview.
+  Routes to 6 workflow sub-skills: cta-health-check, cta-cost-audit, cta-anomaly-hunt,
+  cta-project-review, cta-trend-watch, cta-usage-pattern. Also handles ambiguous intent with a quick overview.
   Do NOT trigger for: building token-related features, tokenizer/NLP work, or non-Claude cost analysis.
 ---
 
@@ -15,7 +15,7 @@ Route token analysis requests to the appropriate workflow skill, or provide a qu
 
 ## Prerequisites
 
-1. **sync_db first** — Execute `mcp__token-analyzer__sync_db` at the start of every workflow to ensure SQLite is current with JSONL session logs. Skip if already called in this conversation with no intervening write operations.
+1. **sync_db when freshness matters** — Execute `mcp__token-analyzer__sync_db` before workflows that read SQLite-backed aggregates (`analyze_global`, `analyze_project`, `cost_report`, `anomaly_scan`, `trend_report`) when the user asks for latest data. Historical `classify_session_pattern` lookups can run directly against JSONL without waiting for `sync_db`.
 2. **Output language** — Use 繁體中文 for prose. Keep English for technical terms (cache_hit_rate, session_id, subagent, tool names).
 3. **Error handling** — Report MCP tool errors to the user; never swallow silently. State explicitly when results are empty.
 
@@ -28,11 +28,12 @@ Route token analysis requests to the appropriate workflow skill, or provide a qu
 | Find anomalies | 「異常」「有問題嗎」「診斷」「排查」 | `cta-anomaly-hunt` |
 | Project analysis | 「分析專案」「專案健檢」「subagent」「工具使用」 | `cta-project-review` |
 | Trend forecast | 「趨勢」「在漲嗎」「預測」「燃率」 | `cta-trend-watch` |
+| Usage pattern | 「使用模式」「pattern 分析」「harness 優化」「工作流建議」「sparkline」 | `cta-usage-pattern` |
 
 ### Routing Behavior
 
 1. **Clear intent** — Invoke the matching sub-skill directly.
-2. **Ambiguous intent** (「幫我看看 token」「分析一下」) — Run sync_db → analyze_global → output a one-page summary (format below) → ask which direction to explore.
+2. **Ambiguous intent** (「幫我看看 token」「分析一下」) — If latest data matters, run sync_db → analyze_global → output a one-page summary (format below) → ask which direction to explore.
 3. **Cross-domain** — Sub-skills may route to each other mid-workflow.
 
 ## Shared Output Format
@@ -74,6 +75,6 @@ Follow with: 「要深入哪個方向？成本 / 異常 / 專案 / 趨勢」
 ### Reference Files
 
 For complete MCP tool parameters, return types, and known caveats:
-- **`references/tool-reference.md`** — 7 MCP tool quick reference with parameter defaults, advanced tuning, and known pitfalls
+- **`references/tool-reference.md`** — 8 MCP tool quick reference with parameter defaults, advanced tuning, and known pitfalls
 
 Sub-skills reference this file at the absolute path `${CLAUDE_PLUGIN_ROOT}/skills/cta/references/tool-reference.md`.
