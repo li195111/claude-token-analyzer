@@ -3,7 +3,7 @@
 > Your Claude Code sessions might be burning tokens you can't see.
 > **Diagnoses** where your tokens go, why they're wasted, and what to fix first.
 
-**Fully local** — parses your `~/.claude` JSONL files into SQLite. Nothing leaves your machine. No cloud. No telemetry.
+**Fully local** — parses your Claude Code JSONL session logs into SQLite. Nothing leaves your machine. No cloud. No telemetry.
 
 [![MIT License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 [![GitHub Release](https://img.shields.io/github/v/release/li195111/claude-token-analyzer)](https://github.com/li195111/claude-token-analyzer/releases)
@@ -39,7 +39,8 @@ Then just ask in any Claude Code session:
 ## How It Works
 
 ```
-~/.claude/projects/**/*.jsonl       Your session logs (never modified)
+$CLAUDE_CONFIG_DIR/projects/**/*.jsonl
+or ~/.claude/projects/**/*.jsonl    Your session logs (never modified)
     → parser.rs                     Extract + deduplicate responses
     → analyzer.rs                   Cost calculation, 10-dimension metrics
     → storage.rs                    Upsert into local SQLite
@@ -47,7 +48,7 @@ Then just ask in any Claude Code session:
     → MCP tools / Skills            You ask, it answers
 ```
 
-All processing happens locally. The SQLite database lives in the plugin directory. No network calls, no external dependencies at runtime.
+All processing happens locally. The SQLite database path follows the configured resolution rules (`CTA_DB_PATH` > plugin root > standalone `~/.claude`). No network calls, no external dependencies at runtime.
 
 ## Skills
 
@@ -59,6 +60,7 @@ All processing happens locally. The SQLite database lives in the plugin director
 | `cta-anomaly-hunt` | "anomalies", "problems", "有異常嗎" | Statistical anomaly scan with drill-down |
 | `cta-project-review` | "analyze project", "專案健檢" | Four-dimension project analysis |
 | `cta-trend-watch` | "trends", "burn rate", "趨勢" | Usage trend analysis with forecasting |
+| `cta-usage-pattern` | "使用模式", "pattern 分析", "harness 優化" | Session pattern classification with workflow advice |
 
 ## MCP Tools
 
@@ -71,6 +73,7 @@ All processing happens locally. The SQLite database lives in the plugin director
 | `cost_report` | Monthly cost report (daily granularity available) |
 | `anomaly_scan` | 6-type anomaly detection with severity scoring |
 | `trend_report` | Time-series trends (daily/weekly/monthly) |
+| `classify_session_pattern` | Session pattern classification with signals and evidence |
 
 ## Configuration
 
@@ -78,12 +81,15 @@ Environment variables (all optional):
 
 | Variable | Purpose | Default |
 |----------|---------|---------|
-| `CTA_DB_PATH` | SQLite database location | `${CLAUDE_PLUGIN_ROOT}/data/token-analyzer.db` |
-| `CTA_PROJECTS_DIR` | Session logs directory | `~/.claude/projects` |
-| `CTA_ARCHIVE_DIR` | Archive directory | `~/.claude/token-analyzer-archive` |
+| `CTA_DB_PATH` | SQLite database location | `${CLAUDE_PLUGIN_ROOT}/data/token-analyzer.db` or `~/.claude/token-analyzer.db` |
+| `CTA_PROJECTS_DIR` | Session logs directory | `${CLAUDE_CONFIG_DIR}/projects` or `~/.claude/projects` |
+| `CTA_ARCHIVE_DIR` | Archive directory | `${CLAUDE_PLUGIN_ROOT}/data/token-analyzer-archive` or `~/.claude/token-analyzer-archive` |
 | `CTA_PRICING_PATH` | Custom pricing TOML | Embedded in binary |
+| `CLAUDE_CONFIG_DIR` | Claude config root for session logs | unset |
 
-Path resolution priority: Environment variable > Plugin mode (`$CLAUDE_PLUGIN_ROOT`) > Standalone mode (`$HOME/.claude/`)
+Path resolution priority:
+- DB/archive: environment variable > plugin mode (`$CLAUDE_PLUGIN_ROOT`) > standalone mode (`$HOME/.claude/`)
+- Projects: environment variable > Claude config dir (`$CLAUDE_CONFIG_DIR/projects`) > standalone mode (`$HOME/.claude/projects`)
 
 ## Building from Source
 
@@ -93,7 +99,7 @@ cd claude-token-analyzer
 bash scripts/build.sh
 # Binary: mcp-server/target/release/cta-mcp-server
 
-# Run tests (98 tests)
+# Run tests
 cargo test --all-targets --manifest-path mcp-server/Cargo.toml
 
 # Lint
@@ -127,7 +133,7 @@ MIT
 > 你的 Claude Code 會話可能正在浪費你看不見的 token。
 > **診斷** token 流向、浪費原因，並告訴你該優先修正什麼。
 
-**全本地運行** — 解析 `~/.claude` JSONL 檔案到 SQLite。資料不離開你的機器。無雲端、無遙測。
+**全本地運行** — 解析 Claude Code 的 JSONL session logs 到 SQLite。資料不離開你的機器。無雲端、無遙測。
 
 ### 功能特色
 

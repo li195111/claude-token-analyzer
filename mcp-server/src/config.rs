@@ -2,8 +2,9 @@
 //!
 //! Resolution priority:
 //! 1. Environment variable override ($CTA_DB_PATH, $CTA_PROJECTS_DIR, $CTA_ARCHIVE_DIR)
-//! 2. Plugin mode ($CLAUDE_PLUGIN_ROOT/data/...)
-//! 3. Standalone mode ($HOME/.claude/...)
+//! 2. Plugin mode ($CLAUDE_PLUGIN_ROOT/data/...) for DB/archive only
+//! 3. Claude config dir ($CLAUDE_CONFIG_DIR/...)
+//! 4. Standalone mode ($HOME/.claude/...)
 
 use std::env;
 use std::path::PathBuf;
@@ -26,13 +27,16 @@ pub fn resolve_db_path() -> Result<PathBuf> {
 
 /// Resolve the projects directory path.
 ///
-/// Priority: `$CTA_PROJECTS_DIR` > `$HOME/.claude/projects`
+/// Priority: `$CTA_PROJECTS_DIR` > `$CLAUDE_CONFIG_DIR/projects` > `$HOME/.claude/projects`
 ///
-/// Note: No plugin-mode override — projects dir is always under `~/.claude/projects`
-/// because that's where Claude Code stores session data regardless of plugin installation.
+/// Note: No plugin-mode override — Claude Code writes session logs under the
+/// Claude config directory, not under the plugin root.
 pub fn resolve_projects_dir() -> Result<PathBuf> {
     if let Ok(p) = env::var("CTA_PROJECTS_DIR") {
         return Ok(PathBuf::from(p));
+    }
+    if let Ok(config_dir) = env::var("CLAUDE_CONFIG_DIR") {
+        return Ok(PathBuf::from(config_dir).join("projects"));
     }
     let home = home_dir()?;
     Ok(home.join(".claude").join("projects"))
@@ -144,16 +148,44 @@ mod tests {
 
     #[test]
     fn test_resolve_projects_dir_from_env() {
-        with_env_vars(&[("CTA_PROJECTS_DIR", Some("/custom/projects"))], || {
-            let path = resolve_projects_dir().unwrap();
-            assert_eq!(path, PathBuf::from("/custom/projects"));
-        });
+        with_env_vars(
+            &[
+                ("CTA_PROJECTS_DIR", Some("/custom/projects")),
+                ("CLAUDE_CONFIG_DIR", Some("/home/testuser/.config/claude")),
+            ],
+            || {
+                let path = resolve_projects_dir().unwrap();
+                assert_eq!(path, PathBuf::from("/custom/projects"));
+            },
+        );
+    }
+
+    #[test]
+    fn test_resolve_projects_dir_from_config_dir() {
+        with_env_vars(
+            &[
+                ("CTA_PROJECTS_DIR", None),
+                ("CLAUDE_CONFIG_DIR", Some("/home/testuser/.config/claude")),
+                ("HOME", Some("/home/testuser")),
+            ],
+            || {
+                let path = resolve_projects_dir().unwrap();
+                assert_eq!(
+                    path,
+                    PathBuf::from("/home/testuser/.config/claude/projects")
+                );
+            },
+        );
     }
 
     #[test]
     fn test_resolve_projects_dir_default() {
         with_env_vars(
-            &[("CTA_PROJECTS_DIR", None), ("HOME", Some("/home/testuser"))],
+            &[
+                ("CTA_PROJECTS_DIR", None),
+                ("CLAUDE_CONFIG_DIR", None),
+                ("HOME", Some("/home/testuser")),
+            ],
             || {
                 let path = resolve_projects_dir().unwrap();
                 assert_eq!(path, PathBuf::from("/home/testuser/.claude/projects"));
@@ -183,9 +215,7 @@ mod tests {
     }
 
     // ============================================================
-    // PR #7 Missing Tests: resolve_archive_dir with CLAUDE_CONFIG_DIR
-    // These 5 tests were identified as missing in the code review of PR #7.
-    // Tests 1-4 pass with current code; test 5 fails (CLAUDE_CONFIG_DIR not yet supported).
+    // Path-resolution coverage for CLAUDE_CONFIG_DIR coexistence and precedence
     // ============================================================
 
     #[test]
@@ -263,14 +293,27 @@ mod tests {
     }
 
     #[test]
+    fn test_projects_ignore_plugin_root_without_config_dir() {
+        with_env_vars(
+            &[
+                ("CTA_PROJECTS_DIR", None),
+                ("CLAUDE_PLUGIN_ROOT", Some("/plugins/cta")),
+                ("CLAUDE_CONFIG_DIR", None),
+                ("HOME", Some("/home/user")),
+            ],
+            || {
+                let path = resolve_projects_dir().unwrap();
+                assert_eq!(path, PathBuf::from("/home/user/.claude/projects"));
+            },
+        );
+    }
+
+    #[test]
     fn test_coexistence_plugin_root_and_config_dir_split_behavior() {
         // When BOTH CLAUDE_PLUGIN_ROOT and CLAUDE_CONFIG_DIR are set:
         //   db      → PLUGIN_ROOT/data/token-analyzer.db
         //   archive → PLUGIN_ROOT/data/token-analyzer-archive
         //   projects → CONFIG_DIR/projects  (NOT PLUGIN_ROOT/projects — Claude Code always writes here)
-        //
-        // This test FAILS with current code because resolve_projects_dir()
-        // does not yet support CLAUDE_CONFIG_DIR (PR #7 feature).
         with_env_vars(
             &[
                 ("CTA_DB_PATH", None),
@@ -295,8 +338,6 @@ mod tests {
                     PathBuf::from("/plugins/cta/data/token-analyzer-archive"),
                     "archive should use PLUGIN_ROOT"
                 );
-                // This assertion FAILS with current code (returns HOME/.claude/projects instead).
-                // It will pass after PR #7 is merged.
                 assert_eq!(
                     projects_path,
                     PathBuf::from("/home/user/.config/claude/projects"),

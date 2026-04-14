@@ -8,7 +8,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 # Build release binary (outputs mcp-server/target/release/cta-mcp-server)
 bash scripts/build.sh
 
-# Run all tests (98 tests: unit + integration)
+# Run all tests
 cargo test --all-targets --manifest-path mcp-server/Cargo.toml
 
 # Run a single test by name
@@ -23,12 +23,12 @@ cargo run --manifest-path mcp-server/Cargo.toml --bin cta -- <command>
 
 ## Architecture
 
-This is a Rust-based Claude Code plugin that parses JSONL session logs from `~/.claude/projects/` and provides token usage analytics via MCP tools and a CLI.
+This is a Rust-based Claude Code plugin that parses JSONL session logs from `CTA_PROJECTS_DIR` when set, otherwise `$CLAUDE_CONFIG_DIR/projects/`, otherwise `~/.claude/projects/`, and provides token usage analytics via MCP tools and a CLI.
 
 ### Data Pipeline
 
 ```
-~/.claude/projects/**/*.jsonl
+$CTA_PROJECTS_DIR/**/*.jsonl or $CLAUDE_CONFIG_DIR/projects/**/*.jsonl or ~/.claude/projects/**/*.jsonl
     → parser.rs    : JSONL lines → ParseResult (zero-computation, deduplicates partial/final responses)
     → analyzer.rs  : ParseResult → SessionAnalysis (cost calculation via pricing.rs, 10-dimension metrics)
     → storage.rs   : SessionAnalysis → SQLite (upsert with change detection)
@@ -39,14 +39,14 @@ This is a Rust-based Claude Code plugin that parses JSONL session logs from `~/.
 
 ### Two Binaries
 
-- **`cta-mcp-server`** (`src/bin/mcp.rs`) — MCP server; implements `ServerHandler` trait from `rmcp`, exposes 7 tools via `#[tool]` macro and `ToolRouter`
+- **`cta-mcp-server`** (`src/bin/mcp.rs`) — MCP server; implements `ServerHandler` trait from `rmcp`, exposes 8 tools via `#[tool]` macro and `ToolRouter`
 - **`cta`** (`src/bin/cli.rs`) — CLI for manual testing/debugging; mirrors MCP tool functionality
 
 ### Key Design Decisions
 
 - **ParseResult is zero-computation**: `parser.rs` only extracts and deduplicates data from JSONL; all cost calculations happen in `analyzer.rs` using `PricingTable`
 - **Pricing is embedded**: `config/pricing.toml` is read at runtime (or overridden via `CTA_PRICING_PATH`). Unknown models fall back to Sonnet-equivalent pricing under `[defaults]`
-- **Three-mode path resolution** (`config.rs`): env var override > `$CLAUDE_PLUGIN_ROOT` plugin mode > `$HOME/.claude/` standalone mode. Projects dir has no plugin-mode override since Claude Code always writes sessions to `~/.claude/projects/`
+- **Path resolution** (`config.rs`): DB/archive use env var override > `$CLAUDE_PLUGIN_ROOT` plugin mode > `$HOME/.claude/` standalone mode. Projects dir uses env var override > `$CLAUDE_CONFIG_DIR/projects` > `$HOME/.claude/projects/` and still has no plugin-root override.
 - **Anomaly detection**: `detector.rs` uses standard deviation thresholds for 5 anomaly types, but `CostInefficient` uses absolute mean-based comparison (above-mean cost AND below-mean cache hit rate), making it independent of the `stddev_threshold` parameter
 
 ### Module Responsibilities
@@ -70,7 +70,7 @@ This is a Rust-based Claude Code plugin that parses JSONL session logs from `~/.
 hooks/hooks.json            — SessionStart hook (auto-downloads binary on first run)
 scripts/run.sh              — MCP server wrapper (ensures binary exists)
 scripts/install.sh          — Binary installer (multi-platform, downloads from GitHub Releases)
-skills/cta*/SKILL.md        — 6 workflow skills (router + 5 sub-skills)
+skills/cta*/SKILL.md        — 7 workflow skills (router + 6 sub-skills)
 ```
 
 ## Commit Convention
