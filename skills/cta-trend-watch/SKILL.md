@@ -81,4 +81,4 @@ If the 7-day trend shows >20% increase, proactively suggest:
 
 ## Additional Resources
 
-For MCP tool parameter details: `${CLAUDE_PLUGIN_ROOT}/skills/cta/references/tool-reference.md`
+For MCP tool parameter details: `../cta/references/tool-reference.md`

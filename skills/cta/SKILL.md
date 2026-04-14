@@ -77,4 +77,4 @@ Follow with: 「要深入哪個方向？成本 / 異常 / 專案 / 趨勢」
 For complete MCP tool parameters, return types, and known caveats:
 - **`references/tool-reference.md`** — 8 MCP tool quick reference with parameter defaults, advanced tuning, and known pitfalls
 
-Sub-skills reference this file at the absolute path `${CLAUDE_PLUGIN_ROOT}/skills/cta/references/tool-reference.md`.
+Sub-skills reference this file via the relative path `references/tool-reference.md`.

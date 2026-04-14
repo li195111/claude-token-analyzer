@@ -82,4 +82,4 @@ Infer "possible cause" and "suggestion" from the 10-dimension analysis data:
 
 ## Additional Resources
 
-For MCP tool parameter details and anomaly type definitions: `${CLAUDE_PLUGIN_ROOT}/skills/cta/references/tool-reference.md`
+For MCP tool parameter details and anomaly type definitions: `../cta/references/tool-reference.md`

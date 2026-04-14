@@ -83,4 +83,4 @@ If the user requests comparison, call `cost_report` for the previous month and c
 
 ## Additional Resources
 
-For MCP tool parameter details: `${CLAUDE_PLUGIN_ROOT}/skills/cta/references/tool-reference.md`
+For MCP tool parameter details: `../cta/references/tool-reference.md`

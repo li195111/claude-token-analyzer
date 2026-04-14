@@ -87,4 +87,4 @@ For top 3 most expensive sessions, execute `mcp__token-analyzer__analyze_session
 
 ## Additional Resources
 
-For MCP tool parameter details: `${CLAUDE_PLUGIN_ROOT}/skills/cta/references/tool-reference.md`
+For MCP tool parameter details: `../cta/references/tool-reference.md`

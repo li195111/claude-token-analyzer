@@ -69,4 +69,4 @@ Route the user's choice to the corresponding sub-skill:
 
 ## Additional Resources
 
-For MCP tool parameter details: `${CLAUDE_PLUGIN_ROOT}/skills/cta/references/tool-reference.md`
+For MCP tool parameter details: `../cta/references/tool-reference.md`
