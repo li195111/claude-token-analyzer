@@ -1,6 +1,6 @@
 # CTA Tool Reference
 
-Quick reference for the 8 token-analyzer MCP tools. For full architecture details, see the source README at `${CLAUDE_PLUGIN_ROOT}/README.md`.
+Quick reference for the 8 token-analyzer MCP tools. For full architecture details, see the repo README at `../../README.md`.
 
 ## sync_db
 
