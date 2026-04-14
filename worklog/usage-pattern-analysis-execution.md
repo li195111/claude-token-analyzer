@@ -181,6 +181,40 @@ Secondary drift at handoff:
 - Add a helper script to symlink repo CTA skills into `~/.codex/skills` for native Codex skill-trigger testing.
 - Add a Codex testing guide with exact config snippet, mount steps, and verification prompts.
 
+## Codex Mount Execution
+
+### Actions performed
+- Built the release MCP binary with `bash scripts/build.sh`.
+- Backed up the existing Codex config to:
+  - `~/.codex/config.toml.bak.cta-codex-install-2026-04-14`
+- Backed up stale pre-existing CTA skill directories under `~/.codex/skills/` to:
+  - `cta.bak.cta-codex-install-2026-04-14`
+  - `cta-health-check.bak.cta-codex-install-2026-04-14`
+  - `cta-cost-audit.bak.cta-codex-install-2026-04-14`
+  - `cta-anomaly-hunt.bak.cta-codex-install-2026-04-14`
+  - `cta-project-review.bak.cta-codex-install-2026-04-14`
+  - `cta-trend-watch.bak.cta-codex-install-2026-04-14`
+- Installed the Codex MCP entry plus CTA skill symlinks via:
+  - `bash scripts/install-codex-test-assets.sh`
+
+### Verified system state
+- `~/.codex/config.toml` now contains:
+  - `[mcp_servers.token-analyzer]`
+  - `command = "/Users/liyuefong/Desktop/claude-token-analyzer/scripts/run-codex.sh"`
+- `~/.codex/skills/` now links the repo's current skill directories:
+  - `cta`
+  - `cta-health-check`
+  - `cta-cost-audit`
+  - `cta-anomaly-hunt`
+  - `cta-project-review`
+  - `cta-trend-watch`
+  - `cta-usage-pattern`
+- Release binary verified present at:
+  - `mcp-server/target/release/cta-mcp-server`
+
+### Operational note
+- Codex must be restarted after this mount so the current session can pick up the new MCP server and skill symlinks.
+
 ## Final Verification Evidence
 
 ### `cargo test --all-targets --manifest-path mcp-server/Cargo.toml`
