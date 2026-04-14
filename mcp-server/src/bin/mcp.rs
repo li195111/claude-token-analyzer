@@ -15,7 +15,10 @@ use claude_token_analyzer::analyzer::{
 };
 use claude_token_analyzer::detector::detect_anomalies;
 use claude_token_analyzer::parser::parse_jsonl_file;
+use claude_token_analyzer::pattern_classifier::classify_with_validation;
+use claude_token_analyzer::pattern_signals::build_signals;
 use claude_token_analyzer::pricing::PricingTable;
+use claude_token_analyzer::session_finder::{resolve_session_file, SessionLookupError};
 use claude_token_analyzer::storage::Database;
 
 // === Default value helpers ===
@@ -47,6 +50,12 @@ fn default_30() -> u32 {
 #[derive(Debug, Serialize, Deserialize, JsonSchema)]
 pub struct AnalyzeSessionParams {
     /// Session ID (UUID) to analyze
+    pub session_id: String,
+}
+
+#[derive(Debug, Serialize, Deserialize, JsonSchema)]
+pub struct ClassifySessionPatternParams {
+    /// Session ID (full UUID or unique prefix) to classify
     pub session_id: String,
 }
 
@@ -106,6 +115,12 @@ pub struct TrendReportParams {
 #[derive(Debug, Serialize, Deserialize, JsonSchema)]
 pub struct SyncDbParams {}
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct PatternToolError {
+    code: &'static str,
+    message: String,
+}
+
 // === Server ===
 
 #[derive(Clone)]
@@ -164,6 +179,33 @@ impl TokenAnalyzerServer {
                 message: msg.into(),
                 data: None,
             }),
+        }
+    }
+
+    #[tool(
+        name = "classify_session_pattern",
+        description = "Classify a single Claude Code session into a usage pattern. Accepts a full session ID or unique prefix and returns pattern, signals, severity, and evidence."
+    )]
+    async fn classify_session_pattern_tool(
+        &self,
+        params: Parameters<ClassifySessionPatternParams>,
+    ) -> Result<CallToolResult, McpError> {
+        let projects_dir = self.projects_dir.clone();
+        let session_id = params.0.session_id.clone();
+
+        let result = tokio::task::spawn_blocking(move || {
+            classify_session_pattern_json(&projects_dir, &session_id)
+        })
+        .await
+        .map_err(|e| McpError {
+            code: ErrorCode::INTERNAL_ERROR,
+            message: format!("Task join error: {}", e).into(),
+            data: None,
+        })?;
+
+        match result {
+            Ok(json) => Ok(CallToolResult::success(vec![Content::text(json)])),
+            Err(err) => Err(pattern_tool_error_to_mcp(err)),
         }
     }
 
@@ -441,6 +483,494 @@ impl ServerHandler for TokenAnalyzerServer {
 /// Delegate to shared session finder (returns Option, callers convert to MCP error).
 fn find_session_file(projects_dir: &Path, session_id: &str) -> Option<PathBuf> {
     claude_token_analyzer::session_finder::find_session_file(projects_dir, session_id)
+}
+
+fn classify_session_pattern_json(
+    projects_dir: &Path,
+    session_id_or_prefix: &str,
+) -> Result<String, PatternToolError> {
+    let jsonl_path =
+        resolve_session_file(projects_dir, session_id_or_prefix).map_err(session_lookup_error)?;
+    let parse_result = parse_jsonl_file(&jsonl_path).map_err(|e| PatternToolError {
+        code: "PARSE_FAILED",
+        message: format!("Failed to parse session file: {e}"),
+    })?;
+    let signals = build_signals(&parse_result);
+    let result = classify_with_validation(signals).map_err(|e| PatternToolError {
+        code: "INSUFFICIENT_DATA",
+        message: e.to_string(),
+    })?;
+
+    serde_json::to_string_pretty(&result).map_err(|e| PatternToolError {
+        code: "INTERNAL_ERROR",
+        message: format!("Failed to serialize pattern result: {e}"),
+    })
+}
+
+fn session_lookup_error(error: SessionLookupError) -> PatternToolError {
+    match error {
+        SessionLookupError::NotFound => PatternToolError {
+            code: "SESSION_NOT_FOUND",
+            message: "Session file not found".to_string(),
+        },
+        SessionLookupError::Ambiguous(paths) => PatternToolError {
+            code: "AMBIGUOUS_SESSION_ID",
+            message: format!(
+                "Session ID prefix matched multiple files: {}",
+                paths
+                    .iter()
+                    .filter_map(|p| p.file_stem().and_then(|s| s.to_str()))
+                    .collect::<Vec<_>>()
+                    .join(", ")
+            ),
+        },
+    }
+}
+
+fn pattern_tool_error_to_mcp(error: PatternToolError) -> McpError {
+    let code = match error.code {
+        "SESSION_NOT_FOUND" | "AMBIGUOUS_SESSION_ID" | "INSUFFICIENT_DATA" => {
+            ErrorCode::INVALID_PARAMS
+        }
+        "PARSE_FAILED" => ErrorCode::INVALID_REQUEST,
+        _ => ErrorCode::INTERNAL_ERROR,
+    };
+
+    McpError {
+        code,
+        message: format!("{}: {}", error.code, error.message).into(),
+        data: Some(serde_json::json!({ "code": error.code })),
+    }
+}
+
+#[cfg(test)]
+#[allow(clippy::items_after_test_module)]
+mod tests {
+    use super::*;
+    use std::fs;
+    use tempfile::tempdir;
+
+    fn assistant_line(
+        request_id: &str,
+        timestamp: &str,
+        input_tokens: u64,
+        output_tokens: u64,
+        cache_creation_input_tokens: u64,
+        cache_read_input_tokens: u64,
+        tools_json: &str,
+    ) -> String {
+        let content: serde_json::Value = serde_json::from_str(&format!(
+            r#"[{{"type":"text","text":"turn"}},{tools_json}]"#
+        ))
+        .unwrap();
+
+        serde_json::json!({
+            "type": "assistant",
+            "requestId": request_id,
+            "timestamp": timestamp,
+            "isSidechain": false,
+            "message": {
+                "model": "claude-sonnet-4-20250514",
+                "id": format!("msg_{request_id}"),
+                "role": "assistant",
+                "content": content,
+                "stop_reason": "tool_use",
+                "usage": {
+                    "input_tokens": input_tokens,
+                    "output_tokens": output_tokens,
+                    "cache_creation_input_tokens": cache_creation_input_tokens,
+                    "cache_read_input_tokens": cache_read_input_tokens
+                }
+            }
+        })
+        .to_string()
+    }
+
+    fn write_session(projects_dir: &Path, session_id: &str, lines: &[String]) -> PathBuf {
+        let file = projects_dir.join(format!("{session_id}.jsonl"));
+        fs::write(&file, lines.join("\n")).unwrap();
+        file
+    }
+
+    fn timestamp_for(offset_minutes: u32) -> String {
+        let total_minutes = 6 * 60 + offset_minutes;
+        let hour = total_minutes / 60;
+        let minute = total_minutes % 60;
+        format!("2026-03-20T{hour:02}:{minute:02}:00.000Z")
+    }
+
+    #[test]
+    fn test_classify_session_pattern_json_supports_unique_prefix() {
+        let dir = tempdir().unwrap();
+        write_session(
+            dir.path(),
+            "abc12345-session",
+            &[
+                assistant_line(
+                    "req_1",
+                    "2026-03-20T06:00:00.000Z",
+                    100,
+                    50,
+                    0,
+                    200,
+                    r#"{"type":"tool_use","id":"toolu_1","name":"Read","input":{"file_path":"/src/lib.rs"}}"#,
+                ),
+                assistant_line(
+                    "req_2",
+                    "2026-03-20T06:01:00.000Z",
+                    100,
+                    50,
+                    0,
+                    200,
+                    r#"{"type":"tool_use","id":"toolu_2","name":"Grep","input":{"pattern":"todo"}}"#,
+                ),
+                assistant_line(
+                    "req_3",
+                    "2026-03-20T06:02:00.000Z",
+                    100,
+                    50,
+                    0,
+                    200,
+                    r#"{"type":"tool_use","id":"toolu_3","name":"Read","input":{"file_path":"/src/main.rs"}}"#,
+                ),
+            ],
+        );
+
+        let json = classify_session_pattern_json(dir.path(), "abc12345").unwrap();
+        let value: serde_json::Value = serde_json::from_str(&json).unwrap();
+
+        assert_eq!(value["pattern"], "observer");
+        assert_eq!(value["severity"], "info");
+        assert_eq!(value["signals"]["turn_count"], 3);
+    }
+
+    #[test]
+    fn test_classify_session_pattern_json_returns_cold_session() {
+        let dir = tempdir().unwrap();
+        write_session(
+            dir.path(),
+            "cold-session",
+            &[
+                assistant_line(
+                    "req_1",
+                    &timestamp_for(0),
+                    200,
+                    20,
+                    0,
+                    0,
+                    r#"{"type":"tool_use","id":"toolu_1","name":"Read","input":{"file_path":"/src/lib.rs"}}"#,
+                ),
+                assistant_line(
+                    "req_2",
+                    &timestamp_for(1),
+                    200,
+                    20,
+                    0,
+                    0,
+                    r#"{"type":"tool_use","id":"toolu_2","name":"Read","input":{"file_path":"/src/main.rs"}}"#,
+                ),
+                assistant_line(
+                    "req_3",
+                    &timestamp_for(2),
+                    200,
+                    20,
+                    0,
+                    0,
+                    r#"{"type":"tool_use","id":"toolu_3","name":"Grep","input":{"pattern":"todo"}}"#,
+                ),
+            ],
+        );
+
+        let json = classify_session_pattern_json(dir.path(), "cold-session").unwrap();
+        let value: serde_json::Value = serde_json::from_str(&json).unwrap();
+
+        assert_eq!(value["pattern"], "cold_session");
+        assert_eq!(value["severity"], "alert");
+    }
+
+    #[test]
+    fn test_classify_session_pattern_json_returns_correction_spiral() {
+        let dir = tempdir().unwrap();
+        write_session(
+            dir.path(),
+            "spiral-session",
+            &[
+                assistant_line(
+                    "req_1",
+                    &timestamp_for(0),
+                    50,
+                    45,
+                    0,
+                    50,
+                    r#"{"type":"tool_use","id":"toolu_1","name":"Edit","input":{"file_path":"/src/lib.rs"}}"#,
+                ),
+                assistant_line(
+                    "req_2",
+                    &timestamp_for(1),
+                    50,
+                    45,
+                    0,
+                    50,
+                    r#"{"type":"tool_use","id":"toolu_2","name":"Write","input":{"file_path":"/src/lib.rs"}}"#,
+                ),
+                assistant_line(
+                    "req_3",
+                    &timestamp_for(2),
+                    50,
+                    45,
+                    0,
+                    50,
+                    r#"{"type":"tool_use","id":"toolu_3","name":"MultiEdit","input":{"file_path":"/src/lib.rs"}}"#,
+                ),
+                assistant_line(
+                    "req_4",
+                    &timestamp_for(3),
+                    50,
+                    45,
+                    0,
+                    50,
+                    r#"{"type":"tool_use","id":"toolu_4","name":"Edit","input":{"file_path":"/src/lib.rs"}}"#,
+                ),
+            ],
+        );
+
+        let json = classify_session_pattern_json(dir.path(), "spiral-session").unwrap();
+        let value: serde_json::Value = serde_json::from_str(&json).unwrap();
+
+        assert_eq!(value["pattern"], "correction_spiral");
+        assert_eq!(value["severity"], "warn");
+        assert_eq!(value["signals"]["repeated_edit_peak"], 4);
+    }
+
+    #[test]
+    fn test_classify_session_pattern_json_returns_subagent_swarm() {
+        let dir = tempdir().unwrap();
+        let lines: Vec<String> = (0..11)
+            .map(|i| {
+                assistant_line(
+                    &format!("req_{}", i + 1),
+                    &timestamp_for(i),
+                    100,
+                    30,
+                    0,
+                    200,
+                    r#"{"type":"tool_use","id":"toolu_agent","name":"Agent","input":{"task":"review"}}"#,
+                )
+            })
+            .collect();
+        write_session(dir.path(), "swarm-session", &lines);
+
+        let json = classify_session_pattern_json(dir.path(), "swarm-session").unwrap();
+        let value: serde_json::Value = serde_json::from_str(&json).unwrap();
+
+        assert_eq!(value["pattern"], "subagent_swarm");
+        assert_eq!(value["severity"], "warn");
+        assert_eq!(value["signals"]["subagent_count"], 11);
+    }
+
+    #[test]
+    fn test_classify_session_pattern_json_returns_kitchen_sink() {
+        let dir = tempdir().unwrap();
+        let tool_payloads = [
+            r#"{"type":"tool_use","id":"toolu_1","name":"Read","input":{"file_path":"/src/a.rs"}}"#,
+            r#"{"type":"tool_use","id":"toolu_2","name":"Grep","input":{"pattern":"alpha"}}"#,
+            r#"{"type":"tool_use","id":"toolu_3","name":"Edit","input":{"file_path":"/src/a.rs"}}"#,
+            r#"{"type":"tool_use","id":"toolu_4","name":"Read","input":{"file_path":"/src/b.rs"}}"#,
+            r#"{"type":"tool_use","id":"toolu_5","name":"Glob","input":{"pattern":"*.rs"}}"#,
+            r#"{"type":"tool_use","id":"toolu_6","name":"Edit","input":{"file_path":"/src/b.rs"}}"#,
+            r#"{"type":"tool_use","id":"toolu_7","name":"Read","input":{"file_path":"/src/c.rs"}}"#,
+            r#"{"type":"tool_use","id":"toolu_8","name":"Grep","input":{"pattern":"beta"}}"#,
+            r#"{"type":"tool_use","id":"toolu_9","name":"Write","input":{"file_path":"/src/a.rs"}}"#,
+            r#"{"type":"tool_use","id":"toolu_10","name":"Read","input":{"file_path":"/src/d.rs"}}"#,
+            r#"{"type":"tool_use","id":"toolu_11","name":"Glob","input":{"pattern":"*.md"}}"#,
+            r#"{"type":"tool_use","id":"toolu_12","name":"MultiEdit","input":{"file_path":"/src/b.rs"}}"#,
+        ];
+        let lines: Vec<String> = tool_payloads
+            .iter()
+            .enumerate()
+            .map(|(i, payload)| {
+                assistant_line(
+                    &format!("req_{}", i + 1),
+                    &timestamp_for(i as u32),
+                    100,
+                    20,
+                    0,
+                    200,
+                    payload,
+                )
+            })
+            .collect();
+        write_session(dir.path(), "kitchen-session", &lines);
+
+        let json = classify_session_pattern_json(dir.path(), "kitchen-session").unwrap();
+        let value: serde_json::Value = serde_json::from_str(&json).unwrap();
+
+        assert_eq!(value["pattern"], "kitchen_sink");
+        assert_eq!(value["severity"], "info");
+        assert_eq!(value["signals"]["topic_shift_count"], 4);
+        assert_eq!(value["signals"]["repeated_edit_peak"], 2);
+    }
+
+    #[test]
+    fn test_classify_session_pattern_json_returns_marathon() {
+        let dir = tempdir().unwrap();
+        let lines: Vec<String> = (0..61)
+            .map(|i| {
+                assistant_line(
+                    &format!("req_{}", i + 1),
+                    &timestamp_for(i * 2),
+                    50,
+                    20,
+                    0,
+                    200,
+                    r#"{"type":"tool_use","id":"toolu_read","name":"Read","input":{"file_path":"/src/lib.rs"}}"#,
+                )
+            })
+            .collect();
+        write_session(dir.path(), "marathon-session", &lines);
+
+        let json = classify_session_pattern_json(dir.path(), "marathon-session").unwrap();
+        let value: serde_json::Value = serde_json::from_str(&json).unwrap();
+
+        assert_eq!(value["pattern"], "marathon");
+        assert_eq!(value["severity"], "info");
+        assert_eq!(value["signals"]["duration_minutes"], 120);
+    }
+
+    #[test]
+    fn test_classify_session_pattern_json_returns_normal() {
+        let dir = tempdir().unwrap();
+        write_session(
+            dir.path(),
+            "normal-session",
+            &[
+                assistant_line(
+                    "req_1",
+                    &timestamp_for(0),
+                    120,
+                    30,
+                    0,
+                    120,
+                    r#"{"type":"tool_use","id":"toolu_1","name":"Read","input":{"file_path":"/src/a.rs"}}"#,
+                ),
+                assistant_line(
+                    "req_2",
+                    &timestamp_for(1),
+                    120,
+                    30,
+                    0,
+                    120,
+                    r#"{"type":"tool_use","id":"toolu_2","name":"Edit","input":{"file_path":"/src/a.rs"}}"#,
+                ),
+                assistant_line(
+                    "req_3",
+                    &timestamp_for(2),
+                    120,
+                    30,
+                    0,
+                    120,
+                    r#"{"type":"tool_use","id":"toolu_3","name":"Read","input":{"file_path":"/src/b.rs"}}"#,
+                ),
+                assistant_line(
+                    "req_4",
+                    &timestamp_for(3),
+                    120,
+                    30,
+                    0,
+                    120,
+                    r#"{"type":"tool_use","id":"toolu_4","name":"Grep","input":{"pattern":"gamma"}}"#,
+                ),
+                assistant_line(
+                    "req_5",
+                    &timestamp_for(4),
+                    120,
+                    30,
+                    0,
+                    120,
+                    r#"{"type":"tool_use","id":"toolu_5","name":"Write","input":{"file_path":"/src/a.rs"}}"#,
+                ),
+            ],
+        );
+
+        let json = classify_session_pattern_json(dir.path(), "normal-session").unwrap();
+        let value: serde_json::Value = serde_json::from_str(&json).unwrap();
+
+        assert_eq!(value["pattern"], "normal");
+        assert_eq!(value["severity"], "info");
+        assert_eq!(value["signals"]["repeated_edit_peak"], 2);
+    }
+
+    #[test]
+    fn test_classify_session_pattern_json_returns_not_found_error() {
+        let dir = tempdir().unwrap();
+        let error = classify_session_pattern_json(dir.path(), "missing").unwrap_err();
+        assert_eq!(error.code, "SESSION_NOT_FOUND");
+    }
+
+    #[test]
+    fn test_classify_session_pattern_json_returns_ambiguous_error() {
+        let dir = tempdir().unwrap();
+        write_session(dir.path(), "abc12345-one", &[]);
+        write_session(dir.path(), "abc12345-two", &[]);
+
+        let error = classify_session_pattern_json(dir.path(), "abc12345").unwrap_err();
+        assert_eq!(error.code, "AMBIGUOUS_SESSION_ID");
+    }
+
+    #[test]
+    fn test_classify_session_pattern_json_returns_parse_failed_error() {
+        let dir = tempdir().unwrap();
+        let file = dir.path().join("broken.jsonl");
+        fs::write(&file, "{\n{\n{\n").unwrap();
+
+        let error = classify_session_pattern_json(dir.path(), "broken").unwrap_err();
+        assert_eq!(error.code, "PARSE_FAILED");
+    }
+
+    #[test]
+    fn test_classify_session_pattern_json_returns_insufficient_data_error() {
+        let dir = tempdir().unwrap();
+        write_session(
+            dir.path(),
+            "short-session",
+            &[
+                assistant_line(
+                    "req_1",
+                    "2026-03-20T06:00:00.000Z",
+                    100,
+                    50,
+                    0,
+                    200,
+                    r#"{"type":"tool_use","id":"toolu_1","name":"Read","input":{"file_path":"/src/lib.rs"}}"#,
+                ),
+                assistant_line(
+                    "req_2",
+                    "2026-03-20T06:01:00.000Z",
+                    100,
+                    50,
+                    0,
+                    200,
+                    r#"{"type":"tool_use","id":"toolu_2","name":"Read","input":{"file_path":"/src/main.rs"}}"#,
+                ),
+            ],
+        );
+
+        let error = classify_session_pattern_json(dir.path(), "short-session").unwrap_err();
+        assert_eq!(error.code, "INSUFFICIENT_DATA");
+        assert!(error.message.contains("assistant turn(s), minimum is 3"));
+    }
+
+    #[test]
+    fn test_pattern_tool_error_to_mcp_includes_symbolic_code_in_data() {
+        let error = pattern_tool_error_to_mcp(PatternToolError {
+            code: "SESSION_NOT_FOUND",
+            message: "Session file not found".to_string(),
+        });
+
+        assert_eq!(error.code, ErrorCode::INVALID_PARAMS);
+        assert_eq!(error.message.as_ref(), "SESSION_NOT_FOUND: Session file not found");
+        assert_eq!(error.data, Some(serde_json::json!({ "code": "SESSION_NOT_FOUND" })));
+    }
 }
 
 #[tokio::main]
