@@ -8,7 +8,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 # Build release binary (outputs mcp-server/target/release/cta-mcp-server)
 bash scripts/build.sh
 
-# Run all tests (103 tests: unit + integration)
+# Run all tests (106 tests: unit + integration)
 cargo test --all-targets --manifest-path mcp-server/Cargo.toml
 
 # Run a single test by name

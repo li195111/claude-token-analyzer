@@ -47,7 +47,7 @@ Then just ask in any Claude Code session:
     → MCP tools / Skills            You ask, it answers
 ```
 
-All processing happens locally. The SQLite database lives in the plugin directory. No network calls, no external dependencies at runtime.
+All processing happens locally. The SQLite database lives under the plugin data directory in plugin mode and falls back to `~/.claude/` in standalone mode. No network calls, no external dependencies at runtime.
 
 ## Skills
 
@@ -96,7 +96,7 @@ cd claude-token-analyzer
 bash scripts/build.sh
 # Binary: mcp-server/target/release/cta-mcp-server
 
-# Run tests (105 tests)
+# Run tests (106 tests)
 cargo test --all-targets --manifest-path mcp-server/Cargo.toml
 
 # Lint

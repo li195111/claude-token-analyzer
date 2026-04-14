@@ -120,10 +120,7 @@ impl PricingTable {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::sync::Mutex;
-
-    /// Serialize env-var tests to avoid races
-    static PRICING_ENV_LOCK: Mutex<()> = Mutex::new(());
+    use crate::test_utils::with_env_vars;
 
     #[test]
     fn test_embedded_pricing() {
@@ -195,7 +192,6 @@ mod tests {
     #[test]
     fn test_from_env_or_embedded_uses_env() {
         use std::io::Write;
-        let _guard = PRICING_ENV_LOCK.lock().unwrap();
 
         let mut tmp = tempfile::NamedTempFile::new().unwrap();
         writeln!(
@@ -219,10 +215,9 @@ cache_read_per_mtok = 1.0
         .unwrap();
 
         let path = tmp.path().to_str().unwrap().to_string();
-        // SAFETY: serialized via PRICING_ENV_LOCK
-        unsafe { std::env::set_var("CTA_PRICING_PATH", &path) };
-        let table = PricingTable::from_env_or_embedded().unwrap();
-        unsafe { std::env::remove_var("CTA_PRICING_PATH") };
+        let table = with_env_vars(&[("CTA_PRICING_PATH", Some(path.as_str()))], || {
+            PricingTable::from_env_or_embedded().unwrap()
+        });
 
         let usage = TokenUsage {
             input_tokens: 1_000_000,
@@ -240,9 +235,9 @@ cache_read_per_mtok = 1.0
 
     #[test]
     fn test_from_env_or_embedded_fallback() {
-        let _guard = PRICING_ENV_LOCK.lock().unwrap();
-        unsafe { std::env::remove_var("CTA_PRICING_PATH") };
-        let table = PricingTable::from_env_or_embedded().unwrap();
+        let table = with_env_vars(&[("CTA_PRICING_PATH", None)], || {
+            PricingTable::from_env_or_embedded().unwrap()
+        });
         assert!(
             !table.config.models.is_empty(),
             "Fallback to embedded should have models"
@@ -251,10 +246,10 @@ cache_read_per_mtok = 1.0
 
     #[test]
     fn test_from_env_invalid_path_errors() {
-        let _guard = PRICING_ENV_LOCK.lock().unwrap();
-        unsafe { std::env::set_var("CTA_PRICING_PATH", "/nonexistent/pricing.toml") };
-        let result = PricingTable::from_env_or_embedded();
-        unsafe { std::env::remove_var("CTA_PRICING_PATH") };
+        let result = with_env_vars(
+            &[("CTA_PRICING_PATH", Some("/nonexistent/pricing.toml"))],
+            || PricingTable::from_env_or_embedded(),
+        );
 
         assert!(result.is_err());
         let err = result.unwrap_err().to_string();
