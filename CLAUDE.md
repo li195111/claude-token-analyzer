@@ -8,14 +8,14 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 # Build release binary (outputs mcp-server/target/release/cta-mcp-server)
 bash scripts/build.sh
 
-# Run all tests (106 tests: unit + integration)
-cargo test --all-targets --manifest-path mcp-server/Cargo.toml
+# Run all tests (173+ tests: unit + integration + plugin contracts)
+cargo test --all-targets --locked --manifest-path mcp-server/Cargo.toml
 
 # Run a single test by name
-cargo test test_simple_session_e2e --manifest-path mcp-server/Cargo.toml
+cargo test test_simple_session_e2e --locked --manifest-path mcp-server/Cargo.toml
 
 # Lint
-cargo clippy --manifest-path mcp-server/Cargo.toml -- -D warnings
+cargo clippy --all-targets --locked --manifest-path mcp-server/Cargo.toml -- -D warnings
 
 # Run CLI locally (for manual testing)
 cargo run --manifest-path mcp-server/Cargo.toml --bin cta -- <command>
@@ -33,13 +33,13 @@ $CTA_PROJECTS_DIR/**/*.jsonl or $CLAUDE_CONFIG_DIR/projects/**/*.jsonl or ~/.cla
     → analyzer.rs  : ParseResult → SessionAnalysis (cost calculation via pricing.rs, 10-dimension metrics)
     → storage.rs   : SessionAnalysis → SQLite (upsert with change detection)
     → detector.rs  : DB queries → AnomalyReport (6 anomaly types, stddev-based thresholds)
-    → bin/mcp.rs   : JSON-RPC over stdio (7 MCP tools via rmcp crate)
+    → bin/mcp.rs   : JSON-RPC over stdio (8 MCP tools via rmcp crate)
     → bin/cli.rs   : Human-readable CLI (9 commands via clap)
 ```
 
 ### Two Binaries
 
-- **`cta-mcp-server`** (`src/bin/mcp.rs`) — MCP server; implements `ServerHandler` trait from `rmcp`, exposes 7 tools via `#[tool]` macro and `ToolRouter`
+- **`cta-mcp-server`** (`src/bin/mcp.rs`) — MCP server; implements `ServerHandler` trait from `rmcp`, exposes 8 tools via `#[tool]` macro and `ToolRouter`
 - **`cta`** (`src/bin/cli.rs`) — CLI for manual testing/debugging; mirrors MCP tool functionality
 
 ### Key Design Decisions
@@ -61,17 +61,30 @@ $CTA_PROJECTS_DIR/**/*.jsonl or $CLAUDE_CONFIG_DIR/projects/**/*.jsonl or ~/.cla
 | `archiver.rs` | zstd compression/decompression for session archival |
 | `config.rs` | Centralized path resolution across three deployment modes (with `$CLAUDE_CONFIG_DIR` fallback for projects only) |
 | `session_finder.rs` | Recursive JSONL file discovery under projects directory |
+| `pattern_classifier.rs` | Hard-signal usage pattern classification and evidence contract |
+| `pattern_signals.rs` | Builds classifier signals from parsed JSONL sessions |
+| `sparkline.rs` | Unicode sparkline rendering for compact trend summaries |
 
 ### Plugin Structure
 
 ```
 .claude-plugin/plugin.json  — Plugin manifest
 .mcp.json                   — MCP server config (stdio transport via scripts/run.sh)
-hooks/hooks.json            — SessionStart hook (auto-downloads binary on first run)
-scripts/run.sh              — MCP server wrapper (ensures binary exists)
-scripts/install.sh          — Binary installer (multi-platform, downloads from GitHub Releases)
-skills/cta*/SKILL.md        — 6 workflow skills (router + 5 sub-skills)
+scripts/run.sh              — Sole MCP installer/exec entrypoint
+scripts/install.sh          — Exact-version, SHA-256-verified binary installer
+scripts/mcp-stdio-smoke.mjs — MCP initialize/tool-count/version smoke
+skills/cta*/SKILL.md        — 7 workflow skills (router + 6 sub-skills)
 ```
+
+The repository's physical `skills/` files are the executable skill SSOT. Do not replace them with external Vault symlinks; marketplace installs copy plugins into a cache.
+
+## Documentation SSOT
+
+Human-facing contracts, history, and worklogs live under:
+
+`/Users/liyuefong/Documents/Obsidian Vault/knowledge/Others/projects/claude-token-analyzer/`
+
+Keep executable code, tests, packaging, runtime skills, `README.md`, `CHANGELOG.md`, and this code-facing guide in the repository.
 
 ## Commit Convention
 
@@ -79,5 +92,4 @@ skills/cta*/SKILL.md        — 6 workflow skills (router + 5 sub-skills)
 
 ## CI/CD
 
-GitHub Actions (`.github/workflows/release.yml`) builds for 4 targets on tag push (`v*`):
-macOS x86_64, macOS ARM64, Linux x86_64, Linux ARM64.
+GitHub Actions (`.github/workflows/release.yml`) verifies tag/manifest/Cargo version parity, locked tests and clippy, installer contracts, and MCP identity before building 4 targets on tag push (`v*`): macOS x86_64, macOS ARM64, Linux x86_64, Linux ARM64. Release assets include `SHA256SUMS`.

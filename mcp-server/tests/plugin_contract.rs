@@ -154,3 +154,41 @@ fn skills_use_native_output_language_contract() {
     assert!(usage_pattern.contains("usage pattern"));
     assert!(usage_pattern.contains("workflow advice"));
 }
+
+#[test]
+fn public_install_and_inventory_docs_are_current() {
+    let root = repo_root();
+    let readme = read(root.join("README.md"));
+    let claude = read(root.join("CLAUDE.md"));
+    let changelog = read(root.join("CHANGELOG.md"));
+
+    let marketplace_add =
+        "claude plugin marketplace add https://github.com/li195111/claude-token-analyzer.git";
+    let qualified_install =
+        "claude plugin install claude-token-analyzer@claude-token-analyzer";
+    assert!(readme.matches(marketplace_add).count() >= 2);
+    assert!(readme.matches(qualified_install).count() >= 2);
+    assert!(readme.contains("--config output_language=en"));
+    assert!(readme.contains("/plugin configure"));
+    assert!(readme.contains("macOS x86_64"));
+    assert!(readme.contains("macOS arm64"));
+    assert!(readme.contains("Linux x86_64"));
+    assert!(readme.contains("Linux arm64"));
+    assert!(readme.contains("`cta-usage-pattern`"));
+    assert!(readme.contains("`classify_session_pattern`"));
+    assert!(readme.contains("173+ automated tests"));
+    assert!(!readme.lines().any(|line| {
+        line.trim() == "claude plugin install claude-token-analyzer"
+    }));
+
+    assert!(claude.contains("8 MCP tools"));
+    assert!(claude.contains("7 workflow skills"));
+    assert!(claude.contains("173+ tests"));
+    assert!(claude.contains("--locked"));
+    assert!(!claude.contains("SessionStart"));
+    assert!(!claude.contains("106 tests"));
+
+    assert!(changelog.contains("## [0.3.0] - Unreleased"));
+    assert!(changelog.contains("output_language"));
+    assert!(changelog.contains("SHA256SUMS"));
+}

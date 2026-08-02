@@ -22,9 +22,14 @@
 ## Quick Start
 
 ```bash
-# Install (binary auto-downloads, no Rust toolchain needed)
-claude plugin install claude-token-analyzer
+# Add this repository as a marketplace, then install the qualified plugin
+claude plugin marketplace add https://github.com/li195111/claude-token-analyzer.git
+claude plugin install claude-token-analyzer@claude-token-analyzer
 ```
+
+The first MCP launch downloads the binary matching the plugin version and verifies it against that release's `SHA256SUMS`. No Rust toolchain is required.
+
+Supported platforms: macOS x86_64, macOS arm64, Linux x86_64, and Linux arm64.
 
 Then just ask in any Claude Code session:
 
@@ -59,6 +64,7 @@ All processing happens locally. The SQLite database lives under the plugin data 
 | `cta-anomaly-hunt` | "anomalies", "problems", "有異常嗎" | Statistical anomaly scan with drill-down |
 | `cta-project-review` | "analyze project", "專案健檢" | Four-dimension project analysis |
 | `cta-trend-watch` | "trends", "burn rate", "趨勢" | Usage trend analysis with forecasting |
+| `cta-usage-pattern` | "usage pattern", "workflow advice", "使用模式" | Session-pattern diagnosis and harness guidance |
 
 ## MCP Tools
 
@@ -66,6 +72,7 @@ All processing happens locally. The SQLite database lives under the plugin data 
 |------|---------|
 | `sync_db` | Sync JSONL session logs to SQLite |
 | `analyze_session` | 10-dimension session analysis |
+| `classify_session_pattern` | Classify one session from hard workflow signals |
 | `analyze_project` | Project-level aggregation with sorting |
 | `analyze_global` | Cross-project panoramic view |
 | `cost_report` | Monthly cost report (daily granularity available) |
@@ -73,6 +80,20 @@ All processing happens locally. The SQLite database lives under the plugin data 
 | `trend_report` | Time-series trends (daily/weekly/monthly) |
 
 ## Configuration
+
+### Output language
+
+CTA uses Claude Code's native plugin configuration. Human-readable reports default to `auto`, which follows the latest user message's primary language and falls back to English when unclear. Set a language during a fresh install with:
+
+```bash
+claude plugin install claude-token-analyzer@claude-token-analyzer --config output_language=en
+```
+
+Supported values are `auto`, `en`, and `zh-TW`. Empty, unsupported, or unexpanded values safely behave as `auto`; metric names, tool names, pattern IDs, JSON fields, and session IDs remain English. Existing users can run `/plugin configure` in Claude Code and select `output_language`.
+
+This configuration flow is verified with Claude Code 2.1.220. If your client does not recognize `--config` or `/plugin configure`, upgrade Claude Code before configuring CTA.
+
+### Environment variables
 
 Environment variables (all optional):
 
@@ -96,11 +117,11 @@ cd claude-token-analyzer
 bash scripts/build.sh
 # Binary: mcp-server/target/release/cta-mcp-server
 
-# Run tests (106 tests)
-cargo test --all-targets --manifest-path mcp-server/Cargo.toml
+# Run 173+ automated tests
+cargo test --all-targets --locked --manifest-path mcp-server/Cargo.toml
 
 # Lint
-cargo clippy --manifest-path mcp-server/Cargo.toml -- -D warnings
+cargo clippy --all-targets --locked --manifest-path mcp-server/Cargo.toml -- -D warnings
 
 # Launch with plugin loaded
 claude --plugin-dir .
@@ -114,7 +135,7 @@ Issues and PRs welcome! See [open issues](https://github.com/li195111/claude-tok
 
 **Development setup:**
 1. Clone the repo and run `bash scripts/build.sh`
-2. Run `cargo test --all-targets --manifest-path mcp-server/Cargo.toml` to verify
+2. Run `cargo test --all-targets --locked --manifest-path mcp-server/Cargo.toml` to verify
 3. Load the plugin locally with `claude --plugin-dir .`
 
 Rust toolchain required. The project uses `cargo clippy -- -D warnings` for linting.
@@ -144,9 +165,16 @@ MIT
 ### 快速開始
 
 ```bash
-# 安裝（自動下載 binary，無需 Rust 工具鏈）
-claude plugin install claude-token-analyzer
+# 加入 Marketplace，再用完整 plugin id 安裝
+claude plugin marketplace add https://github.com/li195111/claude-token-analyzer.git
+claude plugin install claude-token-analyzer@claude-token-analyzer
 ```
+
+第一次啟動 MCP 時會下載與 plugin 版本一致的 binary，並使用同一個 release 的 `SHA256SUMS` 驗證。無需安裝 Rust 工具鏈。
+
+支援平台：macOS x86_64、macOS arm64、Linux x86_64、Linux arm64。
+
+輸出語系預設為 `auto`，會跟隨使用者最新訊息的主要語言。新安裝可加上 `--config output_language=zh-TW`；既有使用者可在 Claude Code 執行 `/plugin configure`。可用值為 `auto`、`en`、`zh-TW`。
 
 然後在 Claude Code 中直接問：
 
@@ -168,5 +196,6 @@ claude plugin install claude-token-analyzer
 | `cta-anomaly-hunt` | "有異常嗎"、"排查" | 統計異常掃描 |
 | `cta-project-review` | "專案健檢" | 四維度專案分析 |
 | `cta-trend-watch` | "趨勢"、"燃燒率" | 用量趨勢分析 |
+| `cta-usage-pattern` | "使用模式"、"工作流建議" | 會話模式診斷與 harness 建議 |
 
 歡迎台灣及亞洲開發者試用和回饋！
