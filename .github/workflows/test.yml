@@ -9,6 +9,9 @@ on:
       - 'fix/**'
   pull_request:
 
+permissions:
+  contents: read
+
 jobs:
   rust-checks:
     runs-on: ubuntu-latest
@@ -30,7 +33,38 @@ jobs:
           workspaces: mcp-server
 
       - name: Run tests
-        run: cargo test --all-targets
+        run: cargo test --all-targets --locked
 
       - name: Run clippy
-        run: cargo clippy --all-targets -- -D warnings
+        run: cargo clippy --all-targets --locked -- -D warnings
+
+      - name: Verify installer contracts
+        working-directory: ${{ github.workspace }}
+        run: bash scripts/tests/install_test.sh
+
+      - name: Verify MCP stdio identity and tools
+        working-directory: ${{ github.workspace }}
+        run: node scripts/mcp-stdio-smoke.mjs -- mcp-server/target/debug/cta-mcp-server
+
+  plugin-contracts:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Install pinned Claude Code
+        run: npm install --global @anthropic-ai/claude-code@2.1.220
+
+      - name: Verify Claude Code version
+        run: claude --version
+
+      - name: Validate plugin manifest
+        run: claude plugin validate . --strict
+
+      - name: Verify isolated marketplace install and config
+        run: node scripts/tests/marketplace_install_test.mjs

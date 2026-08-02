@@ -192,3 +192,17 @@ fn public_install_and_inventory_docs_are_current() {
     assert!(changelog.contains("output_language"));
     assert!(changelog.contains("SHA256SUMS"));
 }
+
+#[test]
+fn ci_enforces_distribution_contracts() {
+    let root = repo_root();
+    let workflow = read(root.join(".github/workflows/test.yml"));
+
+    assert!(workflow.contains("cargo test --all-targets --locked"));
+    assert!(workflow.contains("cargo clippy --all-targets --locked"));
+    assert!(workflow.contains("@anthropic-ai/claude-code@2.1.220"));
+    assert!(workflow.contains("claude plugin validate . --strict"));
+    assert!(workflow.contains("scripts/tests/install_test.sh"));
+    assert!(workflow.contains("scripts/mcp-stdio-smoke.mjs"));
+    assert!(workflow.contains("scripts/tests/marketplace_install_test.mjs"));
+}
