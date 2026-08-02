@@ -12,6 +12,15 @@ description: |
 
 Analyze token usage and cost trends over time, with derived metrics and simple forecasting.
 
+## Output Language
+
+Configured output language: `${user_config.output_language}`.
+
+- `en`: use English for human-readable prose, headings, and table labels.
+- `zh-TW`: use Traditional Chinese for human-readable prose, headings, and table labels.
+- `auto`, unset, empty, unsupported values, or a literal unexpanded placeholder: follow the latest user message's primary natural language; if that is unclear, fall back to English.
+- Keep technical identifiers such as metric names, tool names, pattern IDs, JSON fields, and session IDs in English.
+
 ## Workflow
 
 ### Step 1: Sync Data
@@ -36,32 +45,34 @@ From the returned `data_points` array, compute:
 
 ### Step 4: Output Report
 
+Localize every human-readable label and sentence; the English example below defines structure only.
+
 ```markdown
-## CTA 趨勢報告 — 最近 N 天
+## CTA Trend Report — Last N Days
 
-| 指標 | 值 |
-|------|-----|
-| 日均成本 | $X.XX USD |
-| 日均 Token | X |
-| 峰值日 | YYYY-MM-DD ($X.XX) |
-| 近 7 天均值 | $X.XX USD |
-| 前 7 天均值 | $X.XX USD |
-| 趨勢方向 | ↑ +X.X% / ↓ -X.X% |
-| 本月預估 | $X.XX USD |
+| Metric | Value |
+|--------|-------|
+| Average Daily Cost | $X.XX USD |
+| Average Daily Tokens | X |
+| Peak Day | YYYY-MM-DD ($X.XX) |
+| Recent 7-Day Average | $X.XX USD |
+| Previous 7-Day Average | $X.XX USD |
+| Trend Direction | ↑ +X.X% / ↓ -X.X% |
+| Monthly Projection | $X.XX USD |
 
-### 趨勢分析
+### Trend Analysis
 - (Describe trend: stable / rising / declining based on data)
 - (If rising >20%: warn and suggest cta-anomaly-hunt)
 
-### 每日明細
-| 日期 | 成本 | Token | 會話數 |
-|------|------|-------|--------|
+### Daily Detail
+| Date | Cost | Tokens | Sessions |
+|------|------|--------|----------|
 | ... | ... | ... | ... |
 ```
 
 ### Step 5 (Conditional): Trend Alert
 If the 7-day trend shows >20% increase, proactively suggest:
-> 「趨勢上升幅度較大，建議執行 cta-anomaly-hunt 排查原因。」
+State in the configured language that the trend increased materially and suggest `cta-anomaly-hunt` to investigate.
 
 ## Behavior Rules
 
@@ -73,7 +84,6 @@ If the 7-day trend shows >20% increase, proactively suggest:
 
 ## Output Rules
 
-- Use 繁體中文 for prose, English for technical terms.
 - Currency: `$X.XX USD`.
 - Percentages: one decimal place (`+15.3%`).
 - Token counts: thousands separator (`125,000`).

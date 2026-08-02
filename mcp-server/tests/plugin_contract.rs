@@ -97,3 +97,60 @@ fn binary_distribution_is_versioned_and_single_entrypoint() {
     assert!(release.contains("scripts/mcp-stdio-smoke.mjs"));
     assert!(release.contains("sha256sum cta-mcp-server-* > SHA256SUMS"));
 }
+
+#[test]
+fn skills_use_native_output_language_contract() {
+    let root = repo_root();
+    let plugin = read_json(root.join(".claude-plugin/plugin.json"));
+    let language = &plugin["userConfig"]["output_language"];
+
+    assert_eq!(language["type"], "string");
+    assert_eq!(language["default"], "auto");
+    assert!(language["title"].is_string());
+    assert!(language["description"].is_string());
+    assert!(language.get("required").is_none());
+    assert!(language.get("sensitive").is_none());
+
+    let skill_paths: Vec<_> = fs::read_dir(root.join("skills"))
+        .expect("read skills directory")
+        .filter_map(Result::ok)
+        .map(|entry| entry.path().join("SKILL.md"))
+        .filter(|path| path.is_file())
+        .collect();
+    assert_eq!(skill_paths.len(), 7);
+
+    for path in skill_paths {
+        let contents = read(&path);
+        assert!(
+            contents.contains("Configured output language: `${user_config.output_language}`."),
+            "{} lacks the native userConfig placeholder",
+            path.display()
+        );
+        assert!(contents.contains("literal unexpanded placeholder"));
+        assert!(contents.contains("latest user message's primary natural language"));
+        assert!(contents.contains("fall back to English"));
+        assert!(contents.contains("technical identifiers"));
+        assert!(contents.contains("the English example below defines structure only"));
+        assert!(!contents.contains("Use 繁體中文"));
+        assert!(!contents.contains("> 「"));
+
+        let mut in_code_fence = false;
+        for line in contents.lines() {
+            if line.trim_start().starts_with("```") {
+                in_code_fence = !in_code_fence;
+                continue;
+            }
+            if in_code_fence {
+                assert!(
+                    !line.chars().any(|character| ('\u{4e00}'..='\u{9fff}').contains(&character)),
+                    "{} contains a fixed CJK output template line: {line}",
+                    path.display()
+                );
+            }
+        }
+    }
+
+    let usage_pattern = read(root.join("skills/cta-usage-pattern/SKILL.md"));
+    assert!(usage_pattern.contains("usage pattern"));
+    assert!(usage_pattern.contains("workflow advice"));
+}

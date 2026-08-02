@@ -11,6 +11,15 @@ description: |
 
 Generate structured monthly cost reports with daily breakdown, project breakdown, and model cost comparison.
 
+## Output Language
+
+Configured output language: `${user_config.output_language}`.
+
+- `en`: use English for human-readable prose, headings, and table labels.
+- `zh-TW`: use Traditional Chinese for human-readable prose, headings, and table labels.
+- `auto`, unset, empty, unsupported values, or a literal unexpanded placeholder: follow the latest user message's primary natural language; if that is unclear, fall back to English.
+- Keep technical identifiers such as metric names, tool names, pattern IDs, JSON fields, and session IDs in English.
+
 ## Workflow
 
 ### Step 1: Sync Data
@@ -27,31 +36,32 @@ Execute `mcp__token-analyzer__cost_report` with:
 ### Step 3: Output Report
 
 Format results into the following structure. Fill every section from the cost_report response.
+Localize every human-readable label and sentence; the English example below defines structure only.
 
 ```markdown
-## CTA 月度成本報告 — YYYY-MM
+## CTA Monthly Cost Report — YYYY-MM
 
-**月度總成本：$X.XX USD**
+**Monthly total: $X.XX USD**
 
-### 每日成本
-| 日期 | 成本 | 會話數 | 備註 |
-|------|------|--------|------|
+### Daily Cost
+| Date | Cost | Sessions | Notes |
+|------|------|----------|-------|
 | 03-01 | $X.XX | N | |
 | 03-05 | $X.XX | N | <- peak day |
 
-### 按專案分解
-| 專案 | 成本 | 佔比 |
-|------|------|------|
+### By Project
+| Project | Cost | Share |
+|---------|------|-------|
 | project-a | $X.XX | XX.X% |
 
-### 按模型分解
-| 模型 | 成本 | Token 數 | 每百萬 Token 均價 |
-|------|------|----------|------------------|
+### By Model
+| Model | Cost | Tokens | Cost per Million Tokens |
+|-------|------|--------|-------------------------|
 | claude-opus-4-6 | $X.XX | X | $X.XX |
 | claude-sonnet-4-6 | $X.XX | X | $X.XX |
 | claude-haiku-4-5 | $X.XX | X | $X.XX |
 
-### 優化建議
+### Recommendations
 - (Calculate savings if Opus usage were replaced by Sonnet where applicable)
 ```
 
@@ -75,7 +85,6 @@ If the user requests comparison, call `cost_report` for the previous month and c
 
 ## Output Rules
 
-- Use 繁體中文 for prose, English for technical terms.
 - Currency: `$X.XX USD`.
 - Percentages: one decimal place (`85.3%`).
 - Token counts: thousands separator (`125,000`).

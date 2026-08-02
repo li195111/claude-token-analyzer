@@ -5,5 +5,13 @@
   "author": { "name": "li195111" },
   "repository": "https://github.com/li195111/claude-token-analyzer",
   "license": "MIT",
-  "keywords": ["token-analysis", "cost-tracking", "usage-analytics", "mcp-server"]
+  "keywords": ["token-analysis", "cost-tracking", "usage-analytics", "mcp-server"],
+  "userConfig": {
+    "output_language": {
+      "type": "string",
+      "title": "Output language",
+      "description": "Language for human-readable CTA reports: auto, en, or zh-TW. auto follows the user's language.",
+      "default": "auto"
+    }
+  }
 }

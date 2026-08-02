@@ -11,6 +11,15 @@ description: |
 
 One-page summary of Claude Code usage status. The lightest CTA workflow.
 
+## Output Language
+
+Configured output language: `${user_config.output_language}`.
+
+- `en`: use English for human-readable prose, headings, and table labels.
+- `zh-TW`: use Traditional Chinese for human-readable prose, headings, and table labels.
+- `auto`, unset, empty, unsupported values, or a literal unexpanded placeholder: follow the latest user message's primary natural language; if that is unclear, fall back to English.
+- Keep technical identifiers such as metric names, tool names, pattern IDs, JSON fields, and session IDs in English.
+
 ## Workflow
 
 ### Step 1: Sync Data
@@ -21,24 +30,25 @@ Execute `mcp__token-analyzer__analyze_global` with no parameters.
 
 ### Step 3: Output Summary
 Format results as the following table. Fill every row from the analyze_global response.
+Localize every human-readable label and sentence; the English example below defines structure only.
 
 ```markdown
-## CTA 健檢報告
+## CTA Health Report
 
-| 指標 | 值 |
-|------|-----|
-| 總會話數 | X |
-| 總專案數 | X |
-| 總成本 | $X.XX USD |
-| 平均 Cache 命中率 | X.X% |
-| Subagent Token 佔比 | X.X% |
+| Metric | Value |
+|--------|-------|
+| Total Sessions | X |
+| Total Projects | X |
+| Total Cost | $X.XX USD |
+| Average Cache Hit Rate | X.X% |
+| Subagent Token Ratio | X.X% |
 
-### Top 3 燒錢專案
+### Top 3 Projects by Cost
 1. project-name — $X.XX (N sessions)
 2. ...
 3. ...
 
-### Top 3 最貴會話
+### Top 3 Sessions by Cost
 1. a1b2c3d4 — $X.XX (project-name)
 2. ...
 3. ...
@@ -46,20 +56,19 @@ Format results as the following table. Fill every row from the analyze_global re
 
 ### Step 4: Ask Direction
 After presenting the summary, ask:
-> 「要深入哪個方向？成本 / 異常 / 專案 / 趨勢」
+Ask which area the user wants to explore next: cost, anomalies, projects, or trends. Localize the question using the Output Language contract.
 
 Route the user's choice to the corresponding sub-skill:
 
 | Choice | Invoke |
 |--------|--------|
-| 成本 | `cta-cost-audit` |
-| 異常 | `cta-anomaly-hunt` |
-| 專案 | `cta-project-review` |
-| 趨勢 | `cta-trend-watch` |
+| Cost / 成本 | `cta-cost-audit` |
+| Anomalies / 異常 | `cta-anomaly-hunt` |
+| Projects / 專案 | `cta-project-review` |
+| Trends / 趨勢 | `cta-trend-watch` |
 
 ## Output Rules
 
-- Use 繁體中文 for prose, English for technical terms.
 - Currency: `$X.XX USD`.
 - Percentages: one decimal place (`85.3%`).
 - session_id: first 8 characters only (`a1b2c3d4`).
