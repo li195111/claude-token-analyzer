@@ -79,3 +79,21 @@ fn executable_inventory_is_current() {
         .expect("marketplace plugin description");
     assert!(description.contains("8 MCP tools + 7 workflow skills"));
 }
+
+#[test]
+fn binary_distribution_is_versioned_and_single_entrypoint() {
+    let root = repo_root();
+    let installer = read(root.join("scripts/install.sh"));
+    let runner = read(root.join("scripts/run.sh"));
+    let release = read(root.join(".github/workflows/release.yml"));
+
+    assert!(!root.join("hooks/hooks.json").exists());
+    assert!(!installer.contains("releases/latest"));
+    assert!(installer.contains("releases/download/v$VERSION"));
+    assert!(installer.contains("INSTALL_PATH=\"$INSTALL_DIR/$BINARY_NAME-$VERSION\""));
+    assert!(installer.contains("SHA256SUMS"));
+    assert!(runner.contains("BINARY=\"$(bash \"$SCRIPT_DIR/install.sh\")\""));
+    assert!(release.contains("cargo build --release --locked"));
+    assert!(release.contains("scripts/mcp-stdio-smoke.mjs"));
+    assert!(release.contains("sha256sum cta-mcp-server-* > SHA256SUMS"));
+}
