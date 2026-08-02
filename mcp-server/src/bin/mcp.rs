@@ -452,6 +452,7 @@ impl TokenAnalyzerServer {
 impl ServerHandler for TokenAnalyzerServer {
     fn get_info(&self) -> ServerInfo {
         let mut info = ServerInfo::default();
+        info.server_info = Implementation::new("cta-mcp-server", env!("CARGO_PKG_VERSION"));
         info.instructions = Some(
             "Claude Token Analyzer: Analyze Claude Code session token usage, costs, and trends."
                 .into(),

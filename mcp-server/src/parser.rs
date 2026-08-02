@@ -323,7 +323,7 @@ fn aggregate_model_usage(turns: &[AssistantTurn]) -> Vec<ModelUsage> {
     }
 
     let mut result: Vec<ModelUsage> = map.into_values().collect();
-    result.sort_by(|a, b| b.turn_count.cmp(&a.turn_count)); // most-used first
+    result.sort_by_key(|m| std::cmp::Reverse(m.turn_count)); // most-used first
     result
 }
 
@@ -344,7 +344,7 @@ fn aggregate_tool_usage(turns: &[AssistantTurn]) -> Vec<ToolUsageStat> {
             invocation_count,
         })
         .collect();
-    result.sort_by(|a, b| b.invocation_count.cmp(&a.invocation_count)); // most-used first
+    result.sort_by_key(|t| std::cmp::Reverse(t.invocation_count)); // most-used first
     result
 }
 
