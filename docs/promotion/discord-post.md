@@ -19,7 +19,9 @@ excessive tool calls and prompts that should have been cached but weren't.
 Built a plugin that diagnoses 6 types of token waste with severity scoring.
 Fully local (JSONL → SQLite, nothing leaves your machine).
 
-Install: claude plugin install claude-token-analyzer
+Install:
+  claude plugin marketplace add https://github.com/li195111/claude-token-analyzer.git
+  claude plugin install claude-token-analyzer@claude-token-analyzer
 Then ask: "cta" or "how much did I spend?"
 
 MIT licensed — feedback welcome!

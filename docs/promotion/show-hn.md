@@ -27,7 +27,9 @@ Built a Claude Code plugin that diagnoses 6 types of token waste with
 severity scoring. Fully local — parses your ~/.claude JSONL files into
 SQLite. Nothing leaves your machine. No cloud, no telemetry.
 
-Install: claude plugin install claude-token-analyzer
+Install:
+  claude plugin marketplace add https://github.com/li195111/claude-token-analyzer.git
+  claude plugin install claude-token-analyzer@claude-token-analyzer
 Then ask: "cta" or "how much did I spend?"
 
 MIT licensed: https://github.com/li195111/claude-token-analyzer
@@ -58,5 +60,5 @@ Data from CTA CLI scan on 2026-03-30:
 - [x] Fear/curiosity hook: "found patterns I never expected"
 - [x] Large-scale real data: 8,392 sessions, 8.4 billion tokens
 - [x] Specific findings: LowCacheHitRate #1, CostInefficient, ExcessiveToolUse
-- [x] One-line install: `claude plugin install claude-token-analyzer`
+- [x] Copy-paste install: `claude plugin marketplace add https://github.com/li195111/claude-token-analyzer.git` + `claude plugin install claude-token-analyzer@claude-token-analyzer`
 - [x] Fully local trust signal: "Nothing leaves your machine. No cloud, no telemetry."

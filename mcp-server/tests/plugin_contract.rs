@@ -96,6 +96,12 @@ fn binary_distribution_is_versioned_and_single_entrypoint() {
     assert!(release.contains("cargo build --release --locked"));
     assert!(release.contains("scripts/mcp-stdio-smoke.mjs"));
     assert!(release.contains("sha256sum cta-mcp-server-* > SHA256SUMS"));
+
+    let smoke = read(root.join("scripts/mcp-stdio-smoke.mjs"));
+    assert!(
+        smoke.contains(&format!("\"{RELEASE_VERSION}\"")),
+        "MCP stdio smoke must expect the current release version"
+    );
 }
 
 #[test]
@@ -127,6 +133,7 @@ fn skills_use_native_output_language_contract() {
             path.display()
         );
         assert!(contents.contains("literal unexpanded placeholder"));
+        assert!(contents.contains("overrides the language of the user's message"));
         assert!(contents.contains("latest user message's primary natural language"));
         assert!(contents.contains("fall back to English"));
         assert!(contents.contains("technical identifiers"));
@@ -153,6 +160,31 @@ fn skills_use_native_output_language_contract() {
     let usage_pattern = read(root.join("skills/cta-usage-pattern/SKILL.md"));
     assert!(usage_pattern.contains("usage pattern"));
     assert!(usage_pattern.contains("workflow advice"));
+
+    // Skill reference files feed user-facing output and are English-canonical,
+    // so they must not carry fixed CJK prose that escapes the language contract.
+    let reference_paths: Vec<_> = fs::read_dir(root.join("skills"))
+        .expect("read skills directory")
+        .filter_map(Result::ok)
+        .map(|entry| entry.path().join("references"))
+        .filter(|path| path.is_dir())
+        .flat_map(|dir| {
+            fs::read_dir(dir)
+                .expect("read references directory")
+                .filter_map(Result::ok)
+                .map(|entry| entry.path())
+        })
+        .filter(|path| path.extension().is_some_and(|extension| extension == "md"))
+        .collect();
+    assert!(!reference_paths.is_empty(), "expected skill reference files");
+    for path in reference_paths {
+        let contents = read(&path);
+        assert!(
+            !contents.chars().any(|character| ('\u{4e00}'..='\u{9fff}').contains(&character)),
+            "{} contains CJK prose; skill references are English-canonical",
+            path.display()
+        );
+    }
 }
 
 #[test]
@@ -181,6 +213,31 @@ fn public_install_and_inventory_docs_are_current() {
         line.trim() == "claude plugin install claude-token-analyzer"
     }));
 
+    // Promotion copy is publish-ready external text; it must never carry the
+    // unqualified install command that Issue #13 reported, nor a stale inventory.
+    for entry in fs::read_dir(root.join("docs/promotion"))
+        .expect("read docs/promotion")
+        .filter_map(Result::ok)
+    {
+        let path = entry.path();
+        if path.extension().is_some_and(|extension| extension == "md") {
+            let contents = read(&path);
+            assert!(
+                !contents.lines().any(|line| {
+                    line.contains("claude plugin install claude-token-analyzer")
+                        && !line.contains("claude-token-analyzer@claude-token-analyzer")
+                }),
+                "{} still carries the unqualified install command",
+                path.display()
+            );
+            assert!(
+                !contents.contains("7 MCP tools + 6 workflow skills"),
+                "{} carries a stale tool/skill inventory",
+                path.display()
+            );
+        }
+    }
+
     assert!(claude.contains("8 MCP tools"));
     assert!(claude.contains("7 workflow skills"));
     assert!(claude.contains("173+ tests"));
@@ -188,7 +245,23 @@ fn public_install_and_inventory_docs_are_current() {
     assert!(!claude.contains("SessionStart"));
     assert!(!claude.contains("106 tests"));
 
-    assert!(changelog.contains("## [0.3.0] - Unreleased"));
+    let heading_prefix = format!("## [{RELEASE_VERSION}] - ");
+    let release_state = changelog
+        .lines()
+        .find_map(|line| line.strip_prefix(heading_prefix.as_str()))
+        .expect("changelog lacks a heading for the current release version");
+    let is_dated = release_state.len() == 10
+        && release_state.chars().enumerate().all(|(index, character)| {
+            if index == 4 || index == 7 {
+                character == '-'
+            } else {
+                character.is_ascii_digit()
+            }
+        });
+    assert!(
+        release_state == "Unreleased" || is_dated,
+        "release heading must be 'Unreleased' before tagging or a YYYY-MM-DD date at release time, got: {release_state}"
+    );
     assert!(changelog.contains("output_language"));
     assert!(changelog.contains("SHA256SUMS"));
 }
@@ -205,4 +278,10 @@ fn ci_enforces_distribution_contracts() {
     assert!(workflow.contains("scripts/tests/install_test.sh"));
     assert!(workflow.contains("scripts/mcp-stdio-smoke.mjs"));
     assert!(workflow.contains("scripts/tests/marketplace_install_test.mjs"));
+
+    // The tag-time release gate must enforce the same plugin-facing contracts,
+    // because a tag can be pushed from a commit no branch workflow ever ran on.
+    let release = read(root.join(".github/workflows/release.yml"));
+    assert!(release.contains("claude plugin validate . --strict"));
+    assert!(release.contains("scripts/tests/marketplace_install_test.mjs"));
 }

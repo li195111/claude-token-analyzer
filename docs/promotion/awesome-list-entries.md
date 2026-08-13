@@ -50,7 +50,7 @@ Ready-to-copy entries for 5 awesome list repositories. Each entry matches the ta
 
 Diagnoses token waste in Claude Code sessions. Detects 6 types of statistical anomalies with severity scoring. Fully local — parses ~/.claude JSONL files into SQLite, nothing leaves your machine.
 
-- **Install:** `claude plugin install claude-token-analyzer`
+- **Install:** `claude plugin marketplace add https://github.com/li195111/claude-token-analyzer.git`, then `claude plugin install claude-token-analyzer@claude-token-analyzer`
 - **GitHub:** https://github.com/li195111/claude-token-analyzer
 - **License:** MIT
 ```
@@ -64,7 +64,7 @@ Diagnoses token waste in Claude Code sessions. Detects 6 types of statistical an
 
 **README entry:**
 ```
-**[claude-token-analyzer](https://github.com/li195111/claude-token-analyzer)** - Diagnoses token waste in Claude Code sessions with 6 anomaly types and severity scoring. Fully local — one command install.
+**[claude-token-analyzer](https://github.com/li195111/claude-token-analyzer)** - Diagnoses token waste in Claude Code sessions with 6 anomaly types and severity scoring. Fully local — quick marketplace install.
 ```
 
 ---
@@ -78,7 +78,7 @@ Use this as the PR body for all 5 submissions:
 
 Diagnoses token waste in Claude Code sessions with 6 anomaly types, cost audit, and trend forecasting.
 
-- **Install:** `claude plugin install claude-token-analyzer`
+- **Install:** `claude plugin marketplace add https://github.com/li195111/claude-token-analyzer.git`, then `claude plugin install claude-token-analyzer@claude-token-analyzer`
 - **Fully local** — parses ~/.claude JSONL files into SQLite, nothing leaves your machine
 - **MIT licensed**
 

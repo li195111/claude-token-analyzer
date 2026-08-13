@@ -7,7 +7,7 @@ Unified descriptions and per-platform fields for 4 MCP directory submissions.
 ## Unified Description
 
 **EN:**
-> Diagnoses token waste in Claude Code sessions. Detects 6 types of statistical anomalies with severity scoring. Fully local — parses ~/.claude JSONL files into SQLite, nothing leaves your machine. Plugin-native: one command install, then just ask "cta".
+> Diagnoses token waste in Claude Code sessions. Detects 6 types of statistical anomalies with severity scoring. Fully local — parses ~/.claude JSONL files into SQLite, nothing leaves your machine. Plugin-native: marketplace install, then just ask "cta".
 
 **ZH:**
 > 診斷 Claude Code 會話中的 token 浪費。6 種統計異常檢測與嚴重度評分。全本地運行，資料不離開機器。Plugin 原生，安裝即用。
@@ -46,7 +46,7 @@ Unified descriptions and per-platform fields for 4 MCP directory submissions.
 | Server Name | `claude-token-analyzer` |
 | Description | Diagnoses token waste in Claude Code sessions. Detects 6 types of statistical anomalies with severity scoring. Fully local — parses ~/.claude JSONL files into SQLite, nothing leaves your machine. |
 | Features | 6 anomaly types, cost audit, trend forecasting, cache analysis, severity scoring, natural language interface |
-| Connection | stdio transport via plugin install (`claude plugin install claude-token-analyzer`) |
+| Connection | stdio transport via Claude Code plugin (`claude plugin marketplace add https://github.com/li195111/claude-token-analyzer.git`, then `claude plugin install claude-token-analyzer@claude-token-analyzer`) |
 
 ---
 
@@ -67,7 +67,8 @@ I'd like to submit my MCP server for listing:
   Fully local — parses JSONL files into SQLite, nothing leaves the machine.
 - Category: Developer Tools / Analytics
 - License: MIT
-- Install: claude plugin install claude-token-analyzer
+- Install: claude plugin marketplace add https://github.com/li195111/claude-token-analyzer.git
+  then: claude plugin install claude-token-analyzer@claude-token-analyzer
 
 Thanks!
 ```

@@ -42,6 +42,20 @@ jobs:
       - name: Verify MCP stdio identity and tools
         run: node scripts/mcp-stdio-smoke.mjs -- mcp-server/target/release/cta-mcp-server
 
+      - name: Install Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Install pinned Claude Code
+        run: npm install --global @anthropic-ai/claude-code@2.1.220
+
+      - name: Validate plugin manifest
+        run: claude plugin validate . --strict
+
+      - name: Verify isolated marketplace install and config
+        run: node scripts/tests/marketplace_install_test.mjs
+
   build:
     needs: verify
     strategy:

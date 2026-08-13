@@ -92,4 +92,6 @@ Keep executable code, tests, packaging, runtime skills, `README.md`, `CHANGELOG.
 
 ## CI/CD
 
-GitHub Actions (`.github/workflows/release.yml`) verifies tag/manifest/Cargo version parity, locked tests and clippy, installer contracts, and MCP identity before building 4 targets on tag push (`v*`): macOS x86_64, macOS ARM64, Linux x86_64, Linux ARM64. Release assets include `SHA256SUMS`.
+GitHub Actions (`.github/workflows/release.yml`) verifies tag/manifest/Cargo version parity, locked tests and clippy, installer contracts, plugin/marketplace contracts, and MCP identity before building 4 targets on tag push (`v*`): macOS x86_64, macOS ARM64, Linux x86_64, Linux ARM64. Release assets include `SHA256SUMS`.
+
+Release ordering contract: merge to `develop`, tag `vX.Y.Z` from that exact commit, wait for all four platform assets plus `SHA256SUMS` to publish and verify, and only then promote `develop` to `main`. The README quick-start installs the marketplace from `main`, and `install.sh` downloads only the exact `v$VERSION` release, so promoting `main` before the release assets exist breaks every fresh install.
