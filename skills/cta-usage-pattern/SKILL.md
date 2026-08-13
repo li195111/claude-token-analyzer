@@ -16,10 +16,11 @@ Analyze one or more sessions with the MCP classifier and convert the result into
 
 Configured output language: `${user_config.output_language}`.
 
-- `en`: use English for human-readable prose, headings, and table labels.
-- `zh-TW`: use Traditional Chinese for human-readable prose, headings, and table labels.
+- `en`: write all human-readable prose, headings, and table labels in English, even when the user writes in another language. The configured value overrides the language of the user's message.
+- `zh-TW`: write all human-readable prose, headings, and table labels in Traditional Chinese, even when the user writes in another language. The configured value overrides the language of the user's message.
 - `auto`, unset, empty, unsupported values, or a literal unexpanded placeholder: follow the latest user message's primary natural language; if that is unclear, fall back to English.
 - Keep technical identifiers such as metric names, tool names, pattern IDs, JSON fields, and session IDs in English.
+- Before sending the final response, confirm its prose language matches this contract; if it does not, rewrite it in the required language first.
 
 ## Workflow
 
