@@ -52,7 +52,7 @@ Then just ask in any Claude Code session:
     → MCP tools / Skills            You ask, it answers
 ```
 
-All processing happens locally. The SQLite database lives under the plugin data directory in plugin mode and falls back to `~/.claude/` in standalone mode. No network calls, no external dependencies at runtime.
+All analysis happens locally and session logs never leave the machine. The SQLite database lives under the plugin data directory in plugin mode and falls back to `~/.claude/` in standalone mode. Network access is used only when the installer downloads or upgrades the release binary (via `curl` or `wget`, verified with `sha256sum`/`shasum`); analysis itself makes no network calls.
 
 ## Skills
 
@@ -103,6 +103,7 @@ Environment variables (all optional):
 | `CTA_PROJECTS_DIR` | Session logs directory | `${CLAUDE_CONFIG_DIR}/projects` or `~/.claude/projects` |
 | `CTA_ARCHIVE_DIR` | Archive directory | `${CLAUDE_PLUGIN_ROOT}/data/token-analyzer-archive` or `~/.claude/token-analyzer-archive` |
 | `CTA_PRICING_PATH` | Custom pricing TOML | Embedded in binary |
+| `CTA_LOCAL_BINARY` | Development override: run this prebuilt MCP binary instead of a release download | unset |
 | `CLAUDE_CONFIG_DIR` | Claude config root for session logs | unset |
 
 Path resolution priority:
@@ -123,7 +124,9 @@ cargo test --all-targets --locked --manifest-path mcp-server/Cargo.toml
 # Lint
 cargo clippy --all-targets --locked --manifest-path mcp-server/Cargo.toml -- -D warnings
 
-# Launch with plugin loaded
+# Launch with the plugin loaded, running your local build
+# (without CTA_LOCAL_BINARY the MCP server downloads the release binary instead)
+export CTA_LOCAL_BINARY="$PWD/mcp-server/target/release/cta-mcp-server"
 claude --plugin-dir .
 ```
 
@@ -136,7 +139,7 @@ Issues and PRs welcome! See [open issues](https://github.com/li195111/claude-tok
 **Development setup:**
 1. Clone the repo and run `bash scripts/build.sh`
 2. Run `cargo test --all-targets --locked --manifest-path mcp-server/Cargo.toml` to verify
-3. Load the plugin locally with `claude --plugin-dir .`
+3. Export `CTA_LOCAL_BINARY="$PWD/mcp-server/target/release/cta-mcp-server"`, then load the plugin locally with `claude --plugin-dir .`
 
 Rust toolchain required. The project uses `cargo clippy -- -D warnings` for linting.
 

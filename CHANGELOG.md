@@ -12,6 +12,8 @@ filled only when the corresponding tag is published.
 - MCP initialize identity and a stdio smoke that verifies version `0.3.0` and
   the eight-tool inventory.
 - Release `SHA256SUMS` generation and installer integration coverage.
+- `CTA_LOCAL_BINARY` development override so a locally built MCP server runs
+  through the standard plugin entrypoint.
 
 ### Changed
 
@@ -21,6 +23,9 @@ filled only when the corresponding tag is published.
   the release tag matching the plugin manifest.
 - Human-readable output templates are localizable while technical identifiers
   remain English.
+- The output-language contract states explicitly that a configured `en` or
+  `zh-TW` value overrides the user's message language, and every skill
+  self-checks the response language before sending.
 
 ### Fixed
 
@@ -29,9 +34,15 @@ filled only when the corresponding tag is published.
 - Removed the redundant SessionStart installer path.
 - Restored locked Cargo/clippy verification and synchronized plugin, Cargo, and
   lockfile versions.
+- Installer downloads are time-bounded with bounded retries, stale installer
+  temp files are swept, and the tag-time release gate now runs the plugin
+  validate and marketplace install contracts.
 
 ### Integrity boundary
 
 - Downloaded binaries are verified against the same release's `SHA256SUMS`
   before atomic installation. This proves transport integrity and release-asset
   identity; it does not protect against compromise of the GitHub publisher.
+- Cached binaries are re-verified on every launch against a checksum record
+  written at install time; a corrupted or unrecorded cache entry is reinstalled
+  instead of being trusted.

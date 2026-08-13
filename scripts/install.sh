@@ -10,6 +10,17 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT:-$(cd "$SCRIPT_DIR/.." && pwd)}"
 PLUGIN_MANIFEST="$PLUGIN_ROOT/.claude-plugin/plugin.json"
 
+# Local development override: run an explicit prebuilt binary instead of the
+# release download. Documented in README "Building from Source".
+if [ -n "${CTA_LOCAL_BINARY:-}" ]; then
+    if [ -f "$CTA_LOCAL_BINARY" ] && [ -x "$CTA_LOCAL_BINARY" ]; then
+        printf '%s\n' "$CTA_LOCAL_BINARY"
+        exit 0
+    fi
+    printf 'Error: CTA_LOCAL_BINARY is not an executable file: %s\n' "$CTA_LOCAL_BINARY" >&2
+    exit 1
+fi
+
 if [ ! -r "$PLUGIN_MANIFEST" ]; then
     printf 'Error: plugin manifest is not readable: %s\n' "$PLUGIN_MANIFEST" >&2
     exit 1
@@ -31,11 +42,36 @@ else
 fi
 
 INSTALL_PATH="$INSTALL_DIR/$BINARY_NAME-$VERSION"
+CHECKSUM_PATH="$INSTALL_PATH.sha256"
 
-# A versioned executable is its own cache identity.
-if [ -x "$INSTALL_PATH" ]; then
-    printf '%s\n' "$INSTALL_PATH"
-    exit 0
+calculate_sha256() {
+    local path="$1"
+    local output
+
+    if command -v sha256sum >/dev/null 2>&1; then
+        output="$(sha256sum "$path")"
+    elif command -v shasum >/dev/null 2>&1; then
+        output="$(shasum -a 256 "$path")"
+    else
+        printf 'Error: sha256sum or shasum is required\n' >&2
+        exit 1
+    fi
+
+    printf '%s\n' "${output%% *}"
+}
+
+# A cached binary is reused only when it is a regular executable file that
+# re-verifies against the checksum recorded at install time; anything else
+# falls through to a fresh install.
+if [ -f "$INSTALL_PATH" ] && [ -x "$INSTALL_PATH" ] && [ -r "$CHECKSUM_PATH" ]; then
+    RECORDED_CHECKSUM="$(cat "$CHECKSUM_PATH")"
+    if [ -n "$RECORDED_CHECKSUM" ] && [ "$(calculate_sha256 "$INSTALL_PATH")" = "$RECORDED_CHECKSUM" ]; then
+        printf '%s\n' "$INSTALL_PATH"
+        exit 0
+    fi
+    printf 'Cached binary failed checksum verification; reinstalling %s\n' "$INSTALL_PATH" >&2
+elif [ -e "$INSTALL_PATH" ]; then
+    printf 'Cached entry is not a verified regular executable; reinstalling %s\n' "$INSTALL_PATH" >&2
 fi
 
 # Detect OS and architecture
@@ -65,14 +101,14 @@ download_file() {
     local destination="$2"
 
     if command -v curl >/dev/null 2>&1; then
-        if curl -fSL "$url" -o "$destination"; then
+        if curl -fSL --connect-timeout 10 --max-time 300 --retry 2 "$url" -o "$destination"; then
             return 0
         fi
         printf 'curl failed for %s; trying wget if available\n' "$url" >&2
     fi
 
     if command -v wget >/dev/null 2>&1; then
-        if wget -q "$url" -O "$destination"; then
+        if wget -q --timeout=30 --tries=3 "$url" -O "$destination"; then
             return 0
         fi
     fi
@@ -81,30 +117,26 @@ download_file() {
     exit 1
 }
 
-calculate_sha256() {
-    local path="$1"
-    local output
-
-    if command -v sha256sum >/dev/null 2>&1; then
-        output="$(sha256sum "$path")"
-    elif command -v shasum >/dev/null 2>&1; then
-        output="$(shasum -a 256 "$path")"
-    else
-        printf 'Error: sha256sum or shasum is required\n' >&2
-        exit 1
-    fi
-
-    printf '%s\n' "${output%% *}"
-}
-
 mkdir -p "$INSTALL_DIR"
-TEMP_BINARY="$(mktemp "$INSTALL_DIR/.${BINARY_NAME}.${VERSION}.binary.XXXXXX")"
-TEMP_CHECKSUMS="$(mktemp "$INSTALL_DIR/.${BINARY_NAME}.${VERSION}.checksums.XXXXXX")"
+
+TEMP_BINARY=""
+TEMP_CHECKSUMS=""
+TEMP_RECORD=""
 
 cleanup() {
-    rm -f "$TEMP_BINARY" "$TEMP_CHECKSUMS"
+    if [ -n "$TEMP_BINARY" ]; then rm -f "$TEMP_BINARY"; fi
+    if [ -n "$TEMP_CHECKSUMS" ]; then rm -f "$TEMP_CHECKSUMS"; fi
+    if [ -n "$TEMP_RECORD" ]; then rm -f "$TEMP_RECORD"; fi
 }
 trap cleanup EXIT
+
+# Sweep temp files leaked by an interrupted install. The age filter avoids
+# racing a concurrent in-progress install in the same directory.
+find "$INSTALL_DIR" -maxdepth 1 -name ".${BINARY_NAME}.*" -mmin +60 -exec rm -f {} + || true
+
+TEMP_BINARY="$(mktemp "$INSTALL_DIR/.${BINARY_NAME}.${VERSION}.binary.XXXXXX")"
+TEMP_CHECKSUMS="$(mktemp "$INSTALL_DIR/.${BINARY_NAME}.${VERSION}.checksums.XXXXXX")"
+TEMP_RECORD="$(mktemp "$INSTALL_DIR/.${BINARY_NAME}.${VERSION}.record.XXXXXX")"
 
 printf 'Downloading CTA %s for %s-%s...\n' "$VERSION" "$ARCH_TARGET" "$OS_TARGET" >&2
 download_file "$ASSET_URL" "$TEMP_BINARY"
@@ -132,6 +164,8 @@ if [ "$ACTUAL_CHECKSUM" != "$EXPECTED_CHECKSUM" ]; then
     exit 1
 fi
 
+printf '%s\n' "$EXPECTED_CHECKSUM" > "$TEMP_RECORD"
+mv -f "$TEMP_RECORD" "$CHECKSUM_PATH"
 chmod +x "$TEMP_BINARY"
 mv -f "$TEMP_BINARY" "$INSTALL_PATH"
 printf 'Installed CTA %s at %s\n' "$VERSION" "$INSTALL_PATH" >&2

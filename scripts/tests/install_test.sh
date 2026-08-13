@@ -4,7 +4,7 @@ set -euo pipefail
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 INSTALLER="$REPO_ROOT/scripts/install.sh"
 RUNNER="$REPO_ROOT/scripts/run.sh"
-VERSION="0.3.0"
+VERSION="$(awk -F '"' '/^[[:space:]]*"version"[[:space:]]*:/ { print $4; exit }' "$REPO_ROOT/.claude-plugin/plugin.json")"
 ASSET_NAME="cta-mcp-server-aarch64-apple-darwin"
 TEST_ROOT="$(mktemp -d "${TMPDIR:-/tmp}/cta-installer-test.XXXXXX")"
 MOCK_BIN="$TEST_ROOT/mock-bin"
@@ -37,6 +37,7 @@ destination=""
 while [ "$#" -gt 0 ]; do
     case "$1" in
         -o) destination="$2"; shift 2 ;;
+        --connect-timeout|--max-time|--retry) shift 2 ;;
         -*) shift ;;
         *) url="$1"; shift ;;
     esac
@@ -112,6 +113,7 @@ fresh_path="$(run_installer "$fresh_data" "$fresh_stderr")"
 expected_path="$fresh_data/bin/cta-mcp-server-$VERSION"
 [ "$fresh_path" = "$expected_path" ]
 [ -x "$expected_path" ]
+[ -r "$expected_path.sha256" ]
 assert_file_contains "$DOWNLOAD_LOG" "releases/download/v$VERSION/$ASSET_NAME"
 assert_file_contains "$DOWNLOAD_LOG" "releases/download/v$VERSION/SHA256SUMS"
 
@@ -124,6 +126,58 @@ cache_path="$(run_installer "$fresh_data" "$cache_stderr")"
 [ ! -s "$DOWNLOAD_LOG" ]
 MOCK_CURL_FAIL=0
 MOCK_WGET_FAIL=0
+
+# A corrupted cached binary must fail re-verification and be reinstalled.
+corrupt_stderr="$TEST_ROOT/corrupt.stderr"
+: > "$DOWNLOAD_LOG"
+printf 'corrupted-binary\n' > "$expected_path"
+chmod +x "$expected_path"
+corrupt_path="$(run_installer "$fresh_data" "$corrupt_stderr")"
+[ "$corrupt_path" = "$expected_path" ]
+assert_file_contains "$corrupt_stderr" "failed checksum verification"
+assert_file_contains "$DOWNLOAD_LOG" "releases/download/v$VERSION/$ASSET_NAME"
+cmp -s "$expected_path" "$RELEASE_DIR/$ASSET_NAME"
+
+# A cached binary without its checksum record is untrusted and reinstalled.
+missing_record_stderr="$TEST_ROOT/missing-record.stderr"
+: > "$DOWNLOAD_LOG"
+rm -f "$expected_path.sha256"
+missing_record_path="$(run_installer "$fresh_data" "$missing_record_stderr")"
+[ "$missing_record_path" = "$expected_path" ]
+assert_file_contains "$missing_record_stderr" "not a verified regular executable"
+assert_file_contains "$DOWNLOAD_LOG" "releases/download/v$VERSION/$ASSET_NAME"
+[ -r "$expected_path.sha256" ]
+
+# CTA_LOCAL_BINARY overrides the download path entirely for local development.
+local_bin="$TEST_ROOT/local dev/cta-local"
+mkdir -p "$(dirname "$local_bin")"
+printf '#!/usr/bin/env bash\nprintf "local dev binary\\n"\n' > "$local_bin"
+chmod +x "$local_bin"
+: > "$DOWNLOAD_LOG"
+override_path="$({
+    CTA_LOCAL_BINARY="$local_bin" \
+    CLAUDE_PLUGIN_ROOT="$REPO_ROOT" \
+    CLAUDE_PLUGIN_DATA="$TEST_ROOT/override-data" \
+    MOCK_DOWNLOAD_LOG="$DOWNLOAD_LOG" \
+    MOCK_RELEASE_DIR="$RELEASE_DIR" \
+    PATH="$MOCK_BIN:/usr/bin:/bin" \
+    bash "$INSTALLER"
+} 2>"$TEST_ROOT/override.stderr")"
+[ "$override_path" = "$local_bin" ]
+[ ! -s "$DOWNLOAD_LOG" ]
+
+# A CTA_LOCAL_BINARY that is not an executable file fails fast.
+if CTA_LOCAL_BINARY="$TEST_ROOT/does-not-exist" \
+   CLAUDE_PLUGIN_ROOT="$REPO_ROOT" \
+   CLAUDE_PLUGIN_DATA="$TEST_ROOT/override-data" \
+   MOCK_DOWNLOAD_LOG="$DOWNLOAD_LOG" \
+   MOCK_RELEASE_DIR="$RELEASE_DIR" \
+   PATH="$MOCK_BIN:/usr/bin:/bin" \
+   bash "$INSTALLER" >"$TEST_ROOT/override-bad.stdout" 2>"$TEST_ROOT/override-bad.stderr"; then
+    printf 'invalid CTA_LOCAL_BINARY unexpectedly succeeded\n' >&2
+    exit 1
+fi
+assert_file_contains "$TEST_ROOT/override-bad.stderr" "CTA_LOCAL_BINARY is not an executable file"
 
 runner_output="$({
     CLAUDE_PLUGIN_ROOT="$REPO_ROOT" \
