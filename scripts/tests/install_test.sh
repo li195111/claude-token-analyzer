@@ -148,6 +148,18 @@ assert_file_contains "$missing_record_stderr" "not a verified regular executable
 assert_file_contains "$DOWNLOAD_LOG" "releases/download/v$VERSION/$ASSET_NAME"
 [ -r "$expected_path.sha256" ]
 
+# A directory occupying the cache path is removed and replaced by a fresh install.
+dir_data="$TEST_ROOT/dir-data"
+dir_path="$dir_data/bin/cta-mcp-server-$VERSION"
+mkdir -p "$dir_path"
+: > "$DOWNLOAD_LOG"
+dir_stderr="$TEST_ROOT/dir.stderr"
+dir_result="$(run_installer "$dir_data" "$dir_stderr")"
+[ "$dir_result" = "$dir_path" ]
+[ -f "$dir_path" ]
+cmp -s "$dir_path" "$RELEASE_DIR/$ASSET_NAME"
+assert_file_contains "$dir_stderr" "not a regular file"
+
 # CTA_LOCAL_BINARY overrides the download path entirely for local development.
 local_bin="$TEST_ROOT/local dev/cta-local"
 mkdir -p "$(dirname "$local_bin")"

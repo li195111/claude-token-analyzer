@@ -70,6 +70,10 @@ if [ -f "$INSTALL_PATH" ] && [ -x "$INSTALL_PATH" ] && [ -r "$CHECKSUM_PATH" ]; 
         exit 0
     fi
     printf 'Cached binary failed checksum verification; reinstalling %s\n' "$INSTALL_PATH" >&2
+elif [ -e "$INSTALL_PATH" ] && [ ! -f "$INSTALL_PATH" ]; then
+    # A directory here would swallow the later mv -f instead of failing it.
+    printf 'Cached entry is not a regular file; removing %s before reinstall\n' "$INSTALL_PATH" >&2
+    rm -rf -- "$INSTALL_PATH" "$CHECKSUM_PATH"
 elif [ -e "$INSTALL_PATH" ]; then
     printf 'Cached entry is not a verified regular executable; reinstalling %s\n' "$INSTALL_PATH" >&2
 fi
@@ -164,9 +168,10 @@ if [ "$ACTUAL_CHECKSUM" != "$EXPECTED_CHECKSUM" ]; then
     exit 1
 fi
 
-printf '%s\n' "$EXPECTED_CHECKSUM" > "$TEMP_RECORD"
-mv -f "$TEMP_RECORD" "$CHECKSUM_PATH"
 chmod +x "$TEMP_BINARY"
 mv -f "$TEMP_BINARY" "$INSTALL_PATH"
+# The checksum record lands last so its presence certifies a completed install.
+printf '%s\n' "$EXPECTED_CHECKSUM" > "$TEMP_RECORD"
+mv -f "$TEMP_RECORD" "$CHECKSUM_PATH"
 printf 'Installed CTA %s at %s\n' "$VERSION" "$INSTALL_PATH" >&2
 printf '%s\n' "$INSTALL_PATH"
