@@ -37,6 +37,10 @@ filled only when the corresponding tag is published.
 - Installer downloads are time-bounded with bounded retries, stale installer
   temp files are swept, and the tag-time release gate now runs the plugin
   validate and marketplace install contracts.
+- The pricing table covers the Claude 5 family and all current 4.x models;
+  stale Opus 4.6 and Haiku 4.5 rates are corrected to current list prices, and
+  dated legacy model IDs resolve via aliases instead of silently falling back
+  to Sonnet-equivalent defaults.
 
 ### Integrity boundary
 
