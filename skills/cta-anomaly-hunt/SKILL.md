@@ -11,6 +11,16 @@ description: |
 
 Scan for anomalies, triage by severity, and drill into suspicious sessions for root cause diagnosis.
 
+## Output Language
+
+Configured output language: `${user_config.output_language}`.
+
+- `en`: write all human-readable prose, headings, and table labels in English, even when the user writes in another language. The configured value overrides the language of the user's message.
+- `zh-TW`: write all human-readable prose, headings, and table labels in Traditional Chinese, even when the user writes in another language. The configured value overrides the language of the user's message.
+- `auto`, unset, empty, unsupported values, or a literal unexpanded placeholder: follow the latest user message's primary natural language; if that is unclear, fall back to English.
+- Keep technical identifiers such as metric names, tool names, pattern IDs, JSON fields, and session IDs in English.
+- Before sending the final response, confirm its prose language matches this contract; if it does not, rewrite it in the required language first.
+
 ## Workflow
 
 ### Step 1: Sync Data
@@ -47,16 +57,17 @@ Limit automatic drill-down to **5 sessions maximum** to avoid excessive token co
 ### Step 5: Output Diagnostic Cards
 
 For each analyzed session, output a diagnostic card:
+Localize every human-readable label and sentence; the English example below defines structure only.
 
 ```markdown
 ### 🔴 Session a1b2c3d4 — CostInefficient (severity: 8.5)
-- **成本**：$X.XX（超出平均 X.Xσ）
-- **Cache 命中率**：X.X%（平均 XX.X%）
-- **模型**：claude-opus-4-6
-- **Tool 排名**：Read(35), Bash(12), Edit(8)
-- **壓縮事件**：2 次（turn 8, turn 15）
-- **可能原因**：上下文頻繁壓縮導致 cache 失效，大量重讀檔案
-- **建議**：考慮分拆任務以減少壓縮頻率
+- **Cost**: $X.XX (X.X standard deviations above average)
+- **Cache Hit Rate**: X.X% (average XX.X%)
+- **Model**: claude-opus-4-6
+- **Tool Ranking**: Read(35), Bash(12), Edit(8)
+- **Compression Events**: 2 (turn 8, turn 15)
+- **Possible Cause**: frequent context compression reduced cache reuse and caused repeated reads
+- **Recommendation**: split the task to reduce compression frequency
 ```
 
 Infer "possible cause" and "suggestion" from the 10-dimension analysis data:
@@ -75,7 +86,6 @@ Infer "possible cause" and "suggestion" from the 10-dimension analysis data:
 
 ## Output Rules
 
-- Use 繁體中文 for prose, English for technical terms.
 - Currency: `$X.XX USD`.
 - session_id: first 8 characters.
 - Severity color coding: 🔴 high (>5), 🟡 medium (2-5), 🟢 low (<2).

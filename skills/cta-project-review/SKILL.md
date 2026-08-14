@@ -11,6 +11,16 @@ description: |
 
 Deep analysis of a specific project across cost, efficiency, tool usage, and architecture dimensions.
 
+## Output Language
+
+Configured output language: `${user_config.output_language}`.
+
+- `en`: write all human-readable prose, headings, and table labels in English, even when the user writes in another language. The configured value overrides the language of the user's message.
+- `zh-TW`: write all human-readable prose, headings, and table labels in Traditional Chinese, even when the user writes in another language. The configured value overrides the language of the user's message.
+- `auto`, unset, empty, unsupported values, or a literal unexpanded placeholder: follow the latest user message's primary natural language; if that is unclear, fall back to English.
+- Keep technical identifiers such as metric names, tool names, pattern IDs, JSON fields, and session IDs in English.
+- Before sending the final response, confirm its prose language matches this contract; if it does not, rewrite it in the required language first.
+
 ## Workflow
 
 ### Step 1: Sync Data
@@ -29,38 +39,40 @@ Execute `mcp__token-analyzer__analyze_project` with:
 
 ### Step 4: Output Four-Dimension Report
 
+Localize every human-readable label and sentence; the English example below defines structure only.
+
 ```markdown
-## CTA 專案分析 — project-name
+## CTA Project Analysis — project-name
 
-### 成本面
-| 指標 | 值 |
-|------|-----|
-| 總會話數 | N |
-| 總成本 | $X.XX USD |
-| 平均每會話 | $X.XX |
-| Top 3 最貴會話 | a1b2c3d4($X), e5f6g7h8($X), ... |
+### Cost
+| Metric | Value |
+|--------|-------|
+| Total Sessions | N |
+| Total Cost | $X.XX USD |
+| Average per Session | $X.XX |
+| Top 3 Sessions by Cost | a1b2c3d4($X), e5f6g7h8($X), ... |
 
-### 效率面
-| 指標 | 值 |
-|------|-----|
-| 平均 Cache 命中率 | X.X% |
-| 低 cache 會話比例 | X.X% |
+### Efficiency
+| Metric | Value |
+|--------|-------|
+| Average Cache Hit Rate | X.X% |
+| Low-Cache Session Ratio | X.X% |
 
-### 工具面
-| 工具 | 總調用 | 使用會話數 | 每會話平均 |
-|------|--------|-----------|-----------|
+### Tools
+| Tool | Total Invocations | Sessions | Average per Session |
+|------|-------------------|----------|---------------------|
 | Read | X | N | X.X |
 | Bash | X | N | X.X |
 | Agent | X | N | X.X |
 
-### 架構面
-| 指標 | 值 |
-|------|-----|
-| Main 會話數 | N |
-| Subagent 會話數 | N |
-| Subagent Token 佔比 | X.X% |
-| Subagent Overhead | $X.XX (估算) |
-| 模型分布 | Opus X% / Sonnet X% / Haiku X% |
+### Architecture
+| Metric | Value |
+|--------|-------|
+| Main Sessions | N |
+| Subagent Sessions | N |
+| Subagent Token Ratio | X.X% |
+| Subagent Overhead | $X.XX (estimate) |
+| Model Distribution | Opus X% / Sonnet X% / Haiku X% |
 ```
 
 ### Step 5 (Optional): Subagent Overhead
@@ -79,7 +91,6 @@ For top 3 most expensive sessions, execute `mcp__token-analyzer__analyze_session
 
 ## Output Rules
 
-- Use 繁體中文 for prose, English for technical terms.
 - Currency: `$X.XX USD`.
 - Percentages: one decimal place.
 - session_id: first 8 characters only.

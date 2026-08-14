@@ -1,8 +1,9 @@
 ---
 name: cta-usage-pattern
 description: |
-  This skill should be used when the user asks about "使用模式", "pattern 分析",
-  "harness 優化", "工作流建議", "ASCII 圖", or wants to understand how a Claude Code
+  This skill should be used when the user asks about "usage pattern", "pattern analysis",
+  "harness optimization", "workflow advice", "ASCII chart", "使用模式", "pattern 分析",
+  "harness 優化", "工作流建議", or "ASCII 圖", or wants to understand how a Claude Code
   session behaved and what to improve next. Uses classify_session_pattern as the hard-signal
   source and turns it into actionable workflow guidance.
 ---
@@ -10,6 +11,16 @@ description: |
 # CTA Usage Pattern — Session Pattern Analysis
 
 Analyze one or more sessions with the MCP classifier and convert the result into concrete harness guidance.
+
+## Output Language
+
+Configured output language: `${user_config.output_language}`.
+
+- `en`: write all human-readable prose, headings, and table labels in English, even when the user writes in another language. The configured value overrides the language of the user's message.
+- `zh-TW`: write all human-readable prose, headings, and table labels in Traditional Chinese, even when the user writes in another language. The configured value overrides the language of the user's message.
+- `auto`, unset, empty, unsupported values, or a literal unexpanded placeholder: follow the latest user message's primary natural language; if that is unclear, fall back to English.
+- Keep technical identifiers such as metric names, tool names, pattern IDs, JSON fields, and session IDs in English.
+- Before sending the final response, confirm its prose language matches this contract; if it does not, rewrite it in the required language first.
 
 ## Workflow
 
@@ -42,23 +53,24 @@ Keep it inline, for example:
 
 ## Reporting Template
 
+Localize every human-readable label and sentence; the English example below defines structure only.
+
 ```markdown
-## CTA 使用模式分析 — a1b2c3d4
+## CTA Usage Pattern Analysis — a1b2c3d4
 
 - Pattern: `correction_spiral`
 - Severity: `alert`
 - Signals: cache_hit_rate 18.0%, repeated_edit_peak 8, output_token_ratio 61.0%, turn_count 42
 
-### 建議
-1. 把大檔案切成更小的編輯單元，避免同一檔案反覆來回修補。
-2. 明確要求 diff-only 回覆，降低 output token 膨脹。
-3. 如果需求已改變，先開新 session 或先 checkpoint，再繼續編輯。
+### Recommendations
+1. Split large files into smaller edit units to avoid repeatedly patching the same file.
+2. Request diff-only responses to reduce output token growth.
+3. If requirements changed, start a new session or checkpoint before continuing edits.
 ```
 
 ## Rules
 
-1. Use 繁體中文 for prose; keep English for metric names and pattern IDs.
-2. Quote exact numeric signals from MCP output; do not invent percentages or counts.
-3. When severity is `info`, keep the tone observational instead of warning-heavy.
-4. When classifying multiple sessions, order by severity first, then by cost if available.
-5. If the MCP tool returns `AMBIGUOUS_SESSION_ID`, ask the user for a longer ID rather than guessing.
+1. Quote exact numeric signals from MCP output; do not invent percentages or counts.
+2. When severity is `info`, keep the tone observational instead of warning-heavy.
+3. When classifying multiple sessions, order by severity first, then by cost if available.
+4. If the MCP tool returns `AMBIGUOUS_SESSION_ID`, ask the user for a longer ID rather than guessing.

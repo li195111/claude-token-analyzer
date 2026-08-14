@@ -6,10 +6,58 @@ on:
       - 'v*'
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
+  verify:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy
+
+      - name: Cache cargo
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: mcp-server
+
+      - name: Verify tag, manifests, and Rust tests
+        env:
+          CTA_RELEASE_TAG: ${{ github.ref_name }}
+        run: cargo test --all-targets --locked --manifest-path mcp-server/Cargo.toml
+
+      - name: Run clippy
+        run: cargo clippy --all-targets --locked --manifest-path mcp-server/Cargo.toml -- -D warnings
+
+      - name: Verify installer contracts
+        run: bash scripts/tests/install_test.sh
+
+      - name: Build host MCP server
+        run: cargo build --release --locked --manifest-path mcp-server/Cargo.toml --bin cta-mcp-server
+
+      - name: Verify MCP stdio identity and tools
+        run: node scripts/mcp-stdio-smoke.mjs -- mcp-server/target/release/cta-mcp-server
+
+      - name: Install Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Install pinned Claude Code
+        run: npm install --global @anthropic-ai/claude-code@2.1.220
+
+      - name: Validate plugin manifest
+        run: claude plugin validate . --strict
+
+      - name: Verify isolated marketplace install and config
+        run: node scripts/tests/marketplace_install_test.mjs
+
   build:
+    needs: verify
     strategy:
       matrix:
         include:
@@ -36,6 +84,11 @@ jobs:
         with:
           targets: ${{ matrix.target }}
 
+      - name: Cache cargo
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: mcp-server
+
       - name: Install cross-compilation tools (Linux ARM)
         if: matrix.target == 'aarch64-unknown-linux-gnu'
         run: |
@@ -45,7 +98,7 @@ jobs:
 
       - name: Build release binary
         working-directory: mcp-server
-        run: cargo build --release --target ${{ matrix.target }}
+        run: cargo build --release --locked --target ${{ matrix.target }} --bin cta-mcp-server
 
       - name: Package binary
         run: |
@@ -62,6 +115,8 @@ jobs:
   release:
     needs: build
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
 
     steps:
       - uses: actions/checkout@v4
@@ -71,6 +126,10 @@ jobs:
         with:
           path: dist
           merge-multiple: true
+
+      - name: Generate release checksums
+        working-directory: dist
+        run: sha256sum cta-mcp-server-* > SHA256SUMS
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2

@@ -19,7 +19,7 @@ This file is the SSOT mapping from `classify_session_pattern` output to workflow
 
 ## kitchen_sink
 - Checkpoint and start a new session when the task meaningfully changes.
-- Avoid stacking unrelated "順便" asks into the same long context.
+- Avoid stacking unrelated "while we're at it" asks into the same long context.
 - Keep one session focused on one deliverable or one debugging thread.
 
 ## marathon

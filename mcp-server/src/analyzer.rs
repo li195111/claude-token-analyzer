@@ -377,11 +377,7 @@ pub fn analyze_trend(
         0.0
     };
 
-    let avg_daily_tokens = if total_days > 0 {
-        total_tokens_sum / total_days
-    } else {
-        0
-    };
+    let avg_daily_tokens = total_tokens_sum.checked_div(total_days).unwrap_or(0);
 
     let peak_day = data_points
         .iter()

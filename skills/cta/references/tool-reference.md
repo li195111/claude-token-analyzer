@@ -8,8 +8,8 @@ Quick reference for the 8 token-analyzer MCP tools. For full architecture detail
 |-------|-------|
 | Parameters | None |
 | Returns | `files_synced`, `sessions_upserted`, `files_failed` |
-| When | Latest/freshness-sensitive workflows，或需要先把 JSONL 匯入 SQLite 的分析流程 |
-| Note | Incremental (mtime-based), idempotent. `classify_session_pattern` 直接讀 JSONL，歷史 session lookup 不強制依賴 `sync_db` |
+| When | Latest/freshness-sensitive workflows, or any analysis flow that must import JSONL into SQLite first |
+| Note | Incremental (mtime-based), idempotent. `classify_session_pattern` reads JSONL directly, so historical session lookups do not require `sync_db` |
 
 ## classify_session_pattern
 

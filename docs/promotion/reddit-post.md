@@ -29,7 +29,7 @@ to fix first.
 
 Rust MCP server that parses ~/.claude/projects/**/*.jsonl into a local SQLite
 database, then runs statistical analysis (standard deviation thresholds +
-composite anomaly detection). Exposed as 7 MCP tools + 6 workflow skills.
+composite anomaly detection). Exposed as 8 MCP tools + 7 workflow skills.
 Nothing leaves your machine — fully local, no cloud, no telemetry.
 
 ## What I found scanning my own sessions
@@ -46,7 +46,9 @@ Nothing leaves your machine — fully local, no cloud, no telemetry.
 
 ## Try it
 
-Install: `claude plugin install claude-token-analyzer`
+Install:
+    claude plugin marketplace add https://github.com/li195111/claude-token-analyzer.git
+    claude plugin install claude-token-analyzer@claude-token-analyzer
 Then ask: "cta" or "how much did I spend?" or "scan for anomalies"
 
 ---
