@@ -10,6 +10,8 @@
 
 [English](#features) | [繁體中文](#繁體中文)
 
+![Anomaly scan with severity scoring](docs/promotion/screenshot-anomaly-scan.png)
+
 ## Features
 
 - **Diagnose token waste** — Detects 6 statistical anomaly types (HighCost, LowCacheHitRate, CostInefficient, ExcessiveToolUse, HighTokenUsage, UnusualModelMix) with severity scoring
@@ -18,6 +20,10 @@
 - **Optimize cache** — Identifies sessions with poor cache hit rates that inflate costs
 - **Prioritize fixes** — Severity-scored anomalies so you know what to fix first, not just what's wrong
 - **Converse naturally** — Ask in plain language: "how much did I spend?" or "scan for anomalies"
+
+## How is this different from ccusage?
+
+[ccusage](https://github.com/ryoppippi/ccusage) tells you **how much** you spent — daily and monthly reports across many agent CLIs. CTA diagnoses **where the waste is and why**: statistical anomaly detection with severity scoring over your session history, plus cache-efficiency and usage-pattern analysis that points at the habit to fix. Use ccusage for accounting; reach for CTA when the bill surprises you.
 
 ## Quick Start
 
@@ -156,6 +162,8 @@ MIT
 
 **全本地運行** — 解析 `~/.claude` JSONL 檔案到 SQLite。資料不離開你的機器。無雲端、無遙測。
 
+![成本報告輸出](docs/promotion/screenshot-cost-report.png)
+
 ### 功能特色
 
 - **診斷 token 浪費** — 6 種統計異常類型，含嚴重度評分
@@ -164,6 +172,10 @@ MIT
 - **快取優化** — 識別低快取命中率的會話，降低不必要開銷
 - **嚴重度排序** — 優先處理影響最大的問題，不只是標記異常
 - **自然語言互動** — 用中文直接問：「看看狀況」「這個月花多少」「有異常嗎」
+
+### 與 ccusage 的差異
+
+[ccusage](https://github.com/ryoppippi/ccusage) 告訴你**花了多少**（跨多個 agent CLI 的日／月報表）；CTA 診斷**浪費在哪、為什麼**——對 session 歷史做統計異常偵測與嚴重度排序，加上快取效率與使用模式分析，指出該修正的工作習慣。記帳用 ccusage；帳單讓你嚇一跳時用 CTA。
 
 ### 快速開始
 
