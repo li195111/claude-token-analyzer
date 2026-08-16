@@ -142,13 +142,67 @@ mod tests {
         };
         let cost = table.calculate_cost("claude-opus-4-6", &usage);
 
-        // opus pricing: input=15, output=75, cache_creation=3.75, cache_read=0.75
+        // opus pricing: input=5, output=25, cache_creation=6.25, cache_read=0.50
         let epsilon = 0.001;
+        assert!((cost.input_cost - 5.0).abs() < epsilon);
+        assert!((cost.output_cost - 25.0).abs() < epsilon);
+        assert!((cost.cache_creation_cost - 6.25).abs() < epsilon);
+        assert!((cost.cache_read_cost - 0.50).abs() < epsilon);
+        assert!((cost.total_cost - 36.75).abs() < epsilon);
+    }
+
+    #[test]
+    fn test_claude_5_family_pricing() {
+        let table = PricingTable::embedded();
+        let usage = TokenUsage {
+            input_tokens: 1_000_000,
+            output_tokens: 1_000_000,
+            cache_creation_input_tokens: 1_000_000,
+            cache_read_input_tokens: 1_000_000,
+        };
+        let epsilon = 0.001;
+
+        // (model, input, output, cache_creation, cache_read) per MTok
+        let expected = [
+            ("claude-fable-5", 10.0, 50.0, 12.5, 1.0),
+            ("claude-mythos-5", 10.0, 50.0, 12.5, 1.0),
+            ("claude-opus-5", 5.0, 25.0, 6.25, 0.50),
+            ("claude-sonnet-5", 3.0, 15.0, 3.75, 0.30),
+            ("claude-opus-4-8", 5.0, 25.0, 6.25, 0.50),
+            ("claude-opus-4-7", 5.0, 25.0, 6.25, 0.50),
+            ("claude-opus-4-1", 15.0, 75.0, 18.75, 1.50),
+            ("claude-haiku-4-5", 1.0, 5.0, 1.25, 0.10),
+        ];
+        for (model, inp, out, cc, cr) in expected {
+            let cost = table.calculate_cost(model, &usage);
+            assert!((cost.input_cost - inp).abs() < epsilon, "{model} input");
+            assert!((cost.output_cost - out).abs() < epsilon, "{model} output");
+            assert!(
+                (cost.cache_creation_cost - cc).abs() < epsilon,
+                "{model} cache_creation"
+            );
+            assert!((cost.cache_read_cost - cr).abs() < epsilon, "{model} cache_read");
+        }
+    }
+
+    #[test]
+    fn test_legacy_dated_ids_resolve_via_aliases() {
+        let table = PricingTable::embedded();
+        let usage = TokenUsage {
+            input_tokens: 1_000_000,
+            output_tokens: 0,
+            cache_creation_input_tokens: 0,
+            cache_read_input_tokens: 0,
+        };
+        let epsilon = 0.001;
+
+        // Dated IDs seen in real session logs must not fall back to defaults.
+        let cost = table.calculate_cost("claude-sonnet-4-20250514", &usage);
+        assert!((cost.input_cost - 3.0).abs() < epsilon);
+        let cost = table.calculate_cost("claude-opus-4-5-20251101", &usage);
+        assert!((cost.input_cost - 5.0).abs() < epsilon);
+        let cost = table.calculate_cost("claude-opus-4-1-20250805", &usage);
         assert!((cost.input_cost - 15.0).abs() < epsilon);
-        assert!((cost.output_cost - 75.0).abs() < epsilon);
-        assert!((cost.cache_creation_cost - 3.75).abs() < epsilon);
-        assert!((cost.cache_read_cost - 0.75).abs() < epsilon);
-        assert!((cost.total_cost - 94.5).abs() < epsilon);
     }
 
     #[test]
